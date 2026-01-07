@@ -16,6 +16,42 @@ import config
 from auth import get_ga4_client
 from utils import WEEK_MAP, clean_author_name
 
+# -----------------------------------------------------------------------------
+# [설정] 본명-필명 매핑 데이터 (2025.12.31 기준)
+# -----------------------------------------------------------------------------
+AUTHOR_MAPPING_DATA = [
+    {"본명": "오영호", "필명": "오영호"},
+    {"본명": "이지헌", "필명": "이지헌"},
+    {"본명": "이정호", "필명": "이정호"},
+    {"본명": "김성은", "필명": "김성은"},
+    {"본명": "송자은", "필명": "송자은"},
+    {"본명": "허선", "필명": "허세인"},
+    {"본명": "박현우", "필명": "박하늘"},
+    {"본명": "이정호", "필명": "이준민"},
+    {"본명": "홍정민", "필명": "홍지우"},
+    {"본명": "김성은", "필명": "김세온"},
+    {"본명": "조소현", "필명": "조서율"},
+    {"본명": "송자은", "필명": "송채연"},
+    {"본명": "심세은", "필명": "심예린"},
+    {"본명": "정수연", "필명": "정서윤"},
+    {"본명": "서진영", "필명": "서현민"},
+    {"본명": "AI협력", "필명": "오요리"},
+    {"본명": "AI협력", "필명": "제조리"},
+    {"본명": "AI협력", "필명": "길라떼"},
+    {"본명": "이경엽", "필명": "김병일"},
+    {"본명": "이경엽", "필명": "노하빈"},
+    {"본명": "이경엽", "필명": "민혜경"},
+    {"본명": "이경엽", "필명": "이은지"},
+    {"본명": "이경엽", "필명": "이경엽"},
+    {"본명": "이경엽", "필명": "정영"},
+    {"본명": "조용수", "필명": "김철호"},
+    {"본명": "조용수", "필명": "마종수"},
+    {"본명": "조용수", "필명": "박노석"},
+    {"본명": "조용수", "필명": "안정미"},
+    {"본명": "조용수", "필명": "유성욱"},
+    {"본명": "조용수", "필명": "조용수"}
+]
+
 def run_ga4_report(start_date, end_date, dimensions, metrics, order_by_metric=None, limit=None, dimension_filter=None):
     client = get_ga4_client()
     if not client: return pd.DataFrame()
@@ -425,7 +461,7 @@ def load_all_dashboard_data(selected_week):
             page_sums = df_top10_sources.groupby('pagePath')['screenPageViews'].transform('sum')
             df_top10_sources['ratio'] = (df_top10_sources['screenPageViews'] / page_sums * 100).round(1)
             # 여기서는 최다유입 표시용으로 기존처럼 둠 (UI에서는 위에서 만든 '유입경로 1순위'를 쓸 예정)
-            df_top10['최다유입'] = df_top10['유입경로 1순위'] # Override old logic
+            df_top10['최다유입'] = df_top10['유입경로 1순위'] 
         else:
             df_top10['최다유입'] = "-"
 
@@ -439,16 +475,46 @@ def load_all_dashboard_data(selected_week):
             df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, df_top10_sources)
 
 def get_writers_df_real(df_target):
-    pen_data = [{'필명':'맛객', '본명':'이경엽'}, {'필명':'Chef J', '본명':'조용수'}, {'필명':'푸드헌터', '본명':'김철호'}, {'필명':'Dr.Kim', '본명':'안정미'}]
-    real_to_pen_map = {item['본명']: item['필명'] for item in pen_data}
+    # 1. 엑셀 데이터로부터 매핑 딕셔너리 생성 (필명 -> 본명)
+    #    동일한 필명이 여러 명에게 할당되지 않았다고 가정 (1:1 또는 N:1 구조)
+    #    AUTHOR_MAPPING_DATA는 {'본명': ..., '필명': ...} 리스트
+    pen_to_real_map = {item['필명']: item['본명'] for item in AUTHOR_MAPPING_DATA}
+    
     if df_target.empty or '작성자' not in df_target.columns: return pd.DataFrame()
-    writers = df_target.groupby('작성자').agg(
+
+    # 2. 크롤링된 데이터(df_target)의 '작성자'(필명) 컬럼을 기준으로 본명 매핑
+    #    매핑되지 않는 필명은 '미상' 대신 원래 필명을 본명으로 사용하거나 별도 처리가능. 
+    #    여기서는 필명을 그대로 유지(혹은 '미상')하고 진행.
+    df_work = df_target.copy()
+    df_work['본명_mapped'] = df_work['작성자'].map(pen_to_real_map).fillna(df_work['작성자'])
+    
+    # 3. [기자별 집계]는 '필명(작성자)' 단위로 수행해야 views.py의 로직(필명 기준 필터링 등)과 호환됨.
+    #    따라서 GroupBy는 '작성자'(필명)로 수행하되, '본명' 컬럼을 보존해야 함.
+    writers = df_work.groupby(['작성자', '본명_mapped']).agg(
         기사수=('제목','count'), 
         총조회수=('전체조회수','sum'),
         좋아요=('좋아요', 'sum'),
         댓글=('댓글', 'sum')
-    ).reset_index().sort_values('총조회수', ascending=False)
+    ).reset_index()
+    
+    # 4. 정렬 (총조회수 내림차순)
+    writers = writers.sort_values('총조회수', ascending=False)
     writers['순위'] = range(1, len(writers)+1)
-    writers['필명'] = writers['작성자'].map(real_to_pen_map).fillna('')
+    
+    # 5. 평균조회수 계산
     writers['평균조회수'] = (writers['총조회수']/writers['기사수']).astype(int)
+    
+    # 6. 컬럼명 조정 (views.py와의 호환성 유지)
+    #    views.py의 render_writer_real는 '작성자'를 본명으로, '필명'을 필명으로 출력하려고 시도함.
+    #    views.py의 render_writer_pen는 '필명'을 필명으로, '작성자'를 본명으로 출력하려고 시도함.
+    #    
+    #    따라서 반환하는 DataFrame의 컬럼을 다음과 같이 설정:
+    #    - '작성자': 본명 (Real Name)
+    #    - '필명': 필명 (Pen Name)
+    #    이렇게 하면 views.py에서:
+    #      - Tab 7(본명): 작성자(본명) | 필명(필명) -> OK
+    #      - Tab 8(필명): 필명(필명) | 본명(작성자) -> OK
+    
+    writers = writers.rename(columns={'작성자': '필명', '본명_mapped': '작성자'})
+    
     return writers

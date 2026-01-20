@@ -53,21 +53,20 @@ PRINT_CSS = """
 }
 
 @media print {
-    /* 2. 페이지 설정: A4 가로(landscape), 여백 10mm */
+    /* 2. 페이지 설정: A4 가로, 여백 10mm */
     @page { 
         size: A4 landscape; 
-        margin: 10mm; 
+        margin: 10mm 10mm 10mm 10mm; 
     }
     
     body { 
         width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
-        background-color: white !important;
     }
 
     /* 3. 숨김 처리 */
-    .no-print, .stButton, header, footer, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"] { 
+    .no-print, .stButton, header, footer, [data-testid="stSidebar"], [data-testid="stHeader"] { 
         display: none !important; 
     }
     
@@ -79,19 +78,13 @@ PRINT_CSS = """
         padding-top: 0 !important;
     }
 
-    /* 첫 번째 섹션은 첫 페이지이므로 넘김 제외 */
+    /* 첫 번째 섹션은 페이지 넘김 제외 */
     div:first-child > .section-header-container {
         page-break-before: auto !important;
         break-before: auto !important;
     }
 
-    /* 인쇄 시 가로 폭 최적화 */
-    .block-container {
-        max-width: 100% !important;
-        width: 100% !important;
-        padding: 0 !important;
-    }
-
+    /* 차트 및 테이블 크기 조정 */
     .js-plotly-plot { width: 100% !important; }
     
     .print-footer { 

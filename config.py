@@ -45,17 +45,17 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 </style>
 """
 
-# 인쇄용 CSS (가로 보기 및 여백/페이지 분할 최적화)
+# 인쇄용 CSS (가로보기, 여백 10mm, 탭별 페이지 분리)
 PRINT_CSS = """
 <style>
-/* 1. 화면 미리보기용 설정 */
+/* 1. 화면 미리보기 레이아웃 */
 .print-preview-layout {
     width: 100%;
     margin: 0 auto;
 }
 
 @media print {
-    /* 2. 페이지 설정: A4 가로(landscape), 여백 10mm */
+    /* 2. 페이지 설정: A4 가로, 모든 여백 10mm */
     @page { 
         size: A4 landscape; 
         margin: 10mm; 
@@ -68,42 +68,42 @@ PRINT_CSS = """
         background-color: white !important;
     }
 
-    /* 3. 인쇄 시 불필요한 UI 요소 숨김 */
-    .no-print, .stButton, header, footer, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"] { 
+    /* 3. 인쇄 시 UI 및 안내 문구 숨김 (요청 사항 반영) */
+    .no-print, .stButton, header, footer, 
+    [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
+    .stAlert, [data-testid="stNotification"] { 
         display: none !important; 
     }
     
-    /* 4. 섹션별 강제 페이지 넘김 (1탭당 1페이지 원칙) */
+    /* 4. 탭별(섹션별) 강제 페이지 넘김 */
     .section-header-container { 
         page-break-before: always !important; 
         break-before: page !important;
         margin-top: 0 !important;
+        padding-top: 0 !important;
     }
 
-    /* 첫 번째 섹션은 첫 페이지이므로 제외 */
+    /* 첫 번째 섹션은 첫 페이지이므로 페이지 넘김 방지 */
     div:first-child > .section-header-container {
         page-break-before: auto !important;
         break-before: auto !important;
     }
 
-    /* 콘텐츠 짤림 방지 및 가로폭 최적화 */
+    /* 5. 콘텐츠 가로폭 최적화 및 짤림 방지 */
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
         padding: 0 !important;
         margin: 0 !important;
     }
-    
-    /* 차트 및 데이터프레임이 페이지 밖으로 나가지 않도록 설정 */
+
     [data-testid="stDataFrame"], .js-plotly-plot {
         width: 100% !important;
         page-break-inside: avoid !important;
     }
 
-    /* 푸터 숨김 (이전 요청 반영) */
-    .print-footer { 
-        display: none !important; 
-    }
+    /* 푸터 문구 완전 제거 */
+    .print-footer { display: none !important; }
 }
 </style>
 """

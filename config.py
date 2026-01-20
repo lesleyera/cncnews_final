@@ -12,7 +12,7 @@ COLOR_BG_ACCENT = "#fffcf7"
 CHART_PALETTE = [COLOR_NAVY, COLOR_RED, "#5c6bc0", "#ef5350", "#8d6e63", COLOR_GREY]
 COLOR_GENDER = {'여성': '#d32f2f', '남성': '#1a237e'}
 
-# 기본 화면 CSS (수정 사항 외 창작 금지 원칙 준수)
+# 기본 화면 CSS
 CSS = f"""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css');
@@ -45,11 +45,11 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 </style>
 """
 
-# 인쇄용 CSS (가로보기, 10mm 여백, 제목별 섹션 강제 분리 최적화)
+# 인쇄용 CSS (가로보기, 여백 10mm, 섹션별 강제 분할 최적화)
 PRINT_CSS = """
 <style>
 @media print {
-    /* 1. 페이지 설정: A4 가로, 여백 10mm 고정 */
+    /* 1. 페이지 설정: A4 가로, 모든 여백 10mm */
     @page { 
         size: A4 landscape; 
         margin: 10mm !important; 
@@ -57,44 +57,49 @@ PRINT_CSS = """
     
     body { 
         width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
         background-color: white !important;
     }
 
-    /* 2. 안내 문구 및 불필요 UI 완전 제거 */
+    /* 2. 안내 문구 및 불필요 UI 숨김 */
     .no-print, .stButton, header, footer, 
     [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
     .stAlert, [data-testid="stNotification"], .print-footer, .footer-note { 
         display: none !important; 
     }
     
-    /* 3. 섹션 강제 분할 전략 (7, 8번 제외) */
+    /* 3. 섹션 강제 분할 (1~6번 독립 페이지) */
     .section-header-container { 
+        display: block !important;
         break-before: page !important;
         page-break-before: always !important;
         margin-top: 0 !important;
+        padding-top: 0 !important;
     }
 
-    /* 7번 섹션 뒤에 8번 섹션이 오도록 8번만 강제 분할 해제 */
-    /* views.py의 구조에 따라 클래스 선택자 적용 */
-    div:has(> .section-header-container .section-header:contains("8.")) {
-        break-before: avoid !important;
-        page-break-before: avoid !important;
-    }
-    
-    /* 첫 번째 제목은 넘기지 않음 */
+    /* 첫 번째 섹션은 넘김 제외 */
     div:first-child > .section-header-container {
         break-before: auto !important;
         page-break-before: auto !important;
     }
 
-    /* 4. 짤림 방지를 위한 레이아웃 고정 */
+    /* 4. 7번과 8번 묶기: 8번 제목에서만 강제 분할 해제 */
+    /* 8. 이 포함된 헤더 컨테이너를 정확히 타겟팅 */
+    div[data-testid="stVerticalBlock"] > div:has(.section-header:contains("8.")) .section-header-container {
+        break-before: avoid !important;
+        page-break-before: avoid !important;
+        margin-top: 30px !important; /* 7번과의 간격 */
+    }
+
+    /* 5. 콘텐츠 레이아웃 최적화 */
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
         padding: 0 !important;
+        margin: 0 !important;
     }
 
-    /* 표와 차트 내부 분할 방지 */
     [data-testid="stDataFrame"], .js-plotly-plot, .stPlotlyChart {
         width: 100% !important;
         page-break-inside: avoid !important;

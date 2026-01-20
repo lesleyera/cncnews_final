@@ -18,42 +18,47 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 스타일 적용
+# 2. 스타일 및 물리적 A4 시트 레이아웃 적용
 st.markdown(config.CSS, unsafe_allow_html=True)
 st.markdown(config.PRINT_CSS, unsafe_allow_html=True)
 
-# 인쇄 모드 전용 추가 UI 스타일 (화면에서도 A4 종이처럼 보이게 함)
 st.markdown("""
     <style>
+    /* 화면 미리보기: 실제 PDF 뷰어처럼 종이 뭉치가 보이게 설정 */
     @media screen {
-        .print-mode-container {
-            background-color: #e0e0e0;
-            padding: 40px 0;
+        .print-view-bg {
+            background-color: #525659;
+            padding: 50px 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 30px;
+            gap: 40px;
         }
-        .a4-page-sheet {
+        /* A4 가로 규격 종이 설정 */
+        .sheet-container {
             background-color: white;
             width: 297mm;
             min-height: 210mm;
-            padding: 15mm;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            padding: 15mm 20mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
             box-sizing: border-box;
-            overflow: hidden;
+            overflow: visible; /* 내부 차트가 보일 수 있도록 함 */
         }
     }
+    /* 실제 인쇄 시: 배경 제거 및 페이지 강제 분할 */
     @media print {
-        .print-mode-container { background: none; padding: 0; gap: 0; }
-        .a4-page-sheet { 
-            width: 100%; 
-            box-shadow: none; 
-            padding: 0; 
-            margin: 0; 
-            page-break-after: always !important; 
+        .no-print { display: none !important; }
+        .print-view-bg { background: none; padding: 0; gap: 0; }
+        .sheet-container { 
+            width: 297mm !important; 
+            min-height: 210mm !important;
+            padding: 0;
+            margin: 0;
+            box-shadow: none;
+            page-break-after: always !important;
+            break-after: page !important;
+            display: block !important;
         }
-        .stMarkdown, .element-container { margin: 0 !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -62,38 +67,38 @@ st.markdown("""
 if not auth.check_password():
     st.stop()
 
-# 세션 상태 초기화
+# 세션 상태 관리
 if 'print_mode' not in st.session_state:
     st.session_state['print_mode'] = False
 
-# 상단 헤더 영역
+# [no-print] 헤더 영역
+st.markdown('<div class="no-print">', unsafe_allow_html=True)
 c1, c2 = st.columns([2, 1])
 with c1: 
     st.markdown('<div class="report-title">📰 쿡앤셰프 주간 성과보고서</div>', unsafe_allow_html=True)
-
 with c2:
-    col_btn1, col_btn2 = st.columns(2)
+    btn_col1, btn_col2 = st.columns(2)
     if st.session_state['print_mode']:
-        if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
+        if btn_col1.button("🔙 대시보드 복귀", type="secondary"):
             st.session_state['print_mode'] = False
             st.rerun()
-        if col_btn2.button("🖨️ 인쇄 실행", type="primary"):
+        if btn_col2.button("🖨️ 인쇄 실행", type="primary"):
             st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
     else:
-        if col_btn2.button("🖨️ 인쇄 미리보기", type="primary"):
+        if btn_col2.button("🖨️ 인쇄 미리보기", type="primary"):
             st.session_state['print_mode'] = True
             st.rerun()
-        
-    if not st.session_state['print_mode']:
-        selected_week = st.selectbox("📅 조회 주차", list(WEEK_MAP.keys()), key="week_select", label_visibility="collapsed")
-        st.session_state['selected_week_for_print'] = selected_week
-    else:
-        selected_week = st.session_state.get('selected_week_for_print', st.session_state.get('week_select', list(WEEK_MAP.keys())[0]))
 
-st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_week]}</div>', unsafe_allow_html=True)
-st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
+if not st.session_state['print_mode']:
+    selected_week = st.selectbox("📅 조회 주차", list(WEEK_MAP.keys()), key="week_select", label_visibility="collapsed")
+    st.session_state['selected_week_for_print'] = selected_week
+else:
+    selected_week = st.session_state.get('selected_week_for_print', list(WEEK_MAP.keys())[0])
 
-# 데이터 로드
+st.markdown(f'<div class="period-info no-print">📅 조회 기간: {WEEK_MAP[selected_week]}</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+# 4. 데이터 로드
 (cur_uv, cur_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
  df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
  df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, df_top10_sources) = data.load_all_dashboard_data(selected_week)
@@ -101,54 +106,54 @@ st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('
 writers_df = data.get_writers_df_real(df_top10)
 published_article_count = writers_df['기사수'].sum() if not writers_df.empty and '기사수' in writers_df.columns else 0
 
-# 뷰 렌더링
+# 5. 메인 렌더링 영역
 if st.session_state['print_mode']:
-    # [인쇄 모드 UI] - 아예 UI 자체를 독립된 종이 뭉치로 구성
-    st.markdown('<div class="print-mode-container">', unsafe_allow_html=True)
-    
-    # Page 1: 성과 요약
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # [인쇄 모드] UI 자체가 A4 한 장 한 장의 뭉치로 구성됨
+    st.markdown('<div class="print-view-bg">', unsafe_allow_html=True)
+
+    # PAGE 1: 성과 요약
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Page 2: 접근 경로
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # PAGE 2: 접근 경로
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_traffic(df_traffic_curr, df_traffic_last)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Page 3: 방문자 지역
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # PAGE 3: 방문자 지역 분석
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_demo_region(df_region_curr, df_region_last)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Page 4: 연령 및 성별
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # PAGE 4: 연령 및 성별 분석
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Page 5: TOP 10 상세 및 추이
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # PAGE 5: TOP 10 상세 및 유입 추이
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_top10_detail(df_top10)
-    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:30px;"></div>', unsafe_allow_html=True)
     views.render_top10_trends(df_top10, df_top10_sources)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Page 6: 카테고리별 분석
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # PAGE 6: 카테고리별 분석
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_category(df_top10)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Page 7: 기자별 분석 (7+8 통합)
-    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
+    # PAGE 7: 기자별 성과 분석 (7+8 통합)
+    st.markdown('<div class="sheet-container">', unsafe_allow_html=True)
     views.render_writer_real(writers_df)
-    st.markdown('<div style="height: 30px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:30px;"></div>', unsafe_allow_html=True)
     views.render_writer_pen(writers_df)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True) 
+    st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    # [일반 모드 UI] - 탭 구조
+    # [일반 모드] 기존 탭 인터페이스
     tabs = st.tabs(["1.성과요약", "2.접근경로", "3.방문자특성", "4.Top10상세", "5.Top10추이", "6.카테고리", "7.기자(본명)", "8.기자(필명)"])
     with tabs[0]: views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
     with tabs[1]: views.render_traffic(df_traffic_curr, df_traffic_last)

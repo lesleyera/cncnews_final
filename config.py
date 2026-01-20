@@ -12,7 +12,7 @@ COLOR_BG_ACCENT = "#fffcf7"
 CHART_PALETTE = [COLOR_NAVY, COLOR_RED, "#5c6bc0", "#ef5350", "#8d6e63", COLOR_GREY]
 COLOR_GENDER = {'여성': '#d32f2f', '남성': '#1a237e'}
 
-# 기본 화면 CSS (수정 금지 원칙에 따라 기존 코드 유지)
+# 기본 화면 CSS (기존 스타일 유지)
 CSS = f"""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css');
@@ -45,17 +45,11 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 </style>
 """
 
-# 인쇄용 CSS (가로보기, 여백 10mm, 탭별 페이지 분리)
+# 인쇄용 CSS (가로보기, 여백 10mm, 제목별 페이지 분할)
 PRINT_CSS = """
 <style>
-/* 1. 화면 미리보기 레이아웃 */
-.print-preview-layout {
-    width: 100%;
-    margin: 0 auto;
-}
-
 @media print {
-    /* 2. 페이지 설정: A4 가로, 모든 여백 10mm */
+    /* 1. 가로보기 및 여백 설정 */
     @page { 
         size: A4 landscape; 
         margin: 10mm; 
@@ -68,42 +62,45 @@ PRINT_CSS = """
         background-color: white !important;
     }
 
-    /* 3. 인쇄 시 UI 및 안내 문구 숨김 (요청 사항 반영) */
+    /* 2. 불필요 요소 및 안내 문구 숨김 */
     .no-print, .stButton, header, footer, 
     [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
-    .stAlert, [data-testid="stNotification"] { 
+    .stAlert, [data-testid="stNotification"], .print-footer { 
         display: none !important; 
     }
     
-    /* 4. 탭별(섹션별) 강제 페이지 넘김 */
+    /* 3. 섹션별 강제 페이지 넘김 설정 */
     .section-header-container { 
         page-break-before: always !important; 
         break-before: page !important;
         margin-top: 0 !important;
-        padding-top: 0 !important;
     }
 
-    /* 첫 번째 섹션은 첫 페이지이므로 페이지 넘김 방지 */
+    /* 첫 페이지(1번 섹션)는 넘김 제외 */
     div:first-child > .section-header-container {
         page-break-before: auto !important;
         break-before: auto !important;
     }
 
-    /* 5. 콘텐츠 가로폭 최적화 및 짤림 방지 */
+    /* [중요] 7번과 8번 묶기: 8번 섹션의 페이지 넘김을 강제로 해제 */
+    /* views.py의 텍스트 '8. 이번주 기자별 분석'이 포함된 컨테이너를 타겟팅 */
+    .section-header-container:has(div:contains("8. 이번주 기자별 분석")) {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+        margin-top: 20px !important;
+    }
+
+    /* 4. 가로폭 최적화 및 짤림 방지 */
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
         padding: 0 !important;
-        margin: 0 !important;
     }
 
     [data-testid="stDataFrame"], .js-plotly-plot {
         width: 100% !important;
-        page-break-inside: avoid !important;
+        page-break-inside: avoid !important; /* 내부 짤림 방지 */
     }
-
-    /* 푸터 문구 완전 제거 */
-    .print-footer { display: none !important; }
 }
 </style>
 """

@@ -43,30 +43,30 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 </style>
 """
 
-# 인쇄용 CSS (가로 보기 및 탭당 1페이지)
+# 인쇄용 CSS (탭당 1페이지 구성 및 여백 설정)
 PRINT_CSS = """
 <style>
-/* 1. 화면 미리보기 레이아웃 */
+/* 1. 화면 미리보기용 설정 */
 .print-preview-layout {
     width: 100%;
     margin: 0 auto;
 }
 
 @media print {
-    /* 2. 페이지 설정: A4 가로 방향, 모든 여백 10mm */
+    /* 2. 페이지 설정: A4 가로(landscape), 여백 10mm */
     @page { 
         size: A4 landscape; 
-        margin: 10mm 10mm 10mm 10mm; 
+        margin: 10mm; 
     }
     
     body { 
         width: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
-        -webkit-print-color-adjust: exact;
+        background-color: white !important;
     }
 
-    /* 3. 인쇄 시 불필요한 요소 숨김 */
+    /* 3. 숨김 처리 */
     .no-print, .stButton, header, footer, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"] { 
         display: none !important; 
     }
@@ -76,7 +76,7 @@ PRINT_CSS = """
         page-break-before: always !important; 
         break-before: page !important;
         margin-top: 0 !important;
-        padding-top: 5mm !important; /* 여백 안쪽 상단 여유 */
+        padding-top: 0 !important;
     }
 
     /* 첫 번째 섹션은 첫 페이지이므로 넘김 제외 */
@@ -85,16 +85,15 @@ PRINT_CSS = """
         break-before: auto !important;
     }
 
-    /* 콘텐츠 가로폭 최적화 */
+    /* 인쇄 시 가로 폭 최적화 */
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
         padding: 0 !important;
     }
-    
-    .js-plotly-plot { width: 100% !important; }
-    .stDataFrame { width: 100% !important; }
 
+    .js-plotly-plot { width: 100% !important; }
+    
     .print-footer { 
         display: block !important; 
         position: fixed; 
@@ -106,6 +105,11 @@ PRINT_CSS = """
         border-top: 1px solid #eee;
         padding-top: 5px;
     }
+}
+
+/* 화면에서도 섹션 구분을 위해 여백 추가 */
+.section-header-container {
+    margin-top: 50px !important;
 }
 </style>
 """

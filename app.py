@@ -62,56 +62,56 @@ with c2:
 st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_week]}</div>', unsafe_allow_html=True)
 st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
 
-# 데이터 로드
-# [수정] data.py에서 반환하는 df_top10_sources 추가 수신 (총 18개 항목)
+# 데이터 로드 (원본 인자 유지)
 (cur_uv, cur_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
  df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
  df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, df_top10_sources) = data.load_all_dashboard_data(selected_week)
 
-# 기자별 데이터 생성 (본명 기준)
+# 기자별 데이터 생성
 writers_df = data.get_writers_df_real(df_top10)
 
-# 발행 기사 수 계산 (기자별 기사 수 합계)
+# 발행 기사 수 계산
 published_article_count = 0
 if not writers_df.empty and '기사수' in writers_df.columns:
     published_article_count = writers_df['기사수'].sum()
 
 # 뷰 렌더링
 if st.session_state['print_mode']:
-    # [인쇄 모드]
-    st.info("💡 인쇄 미리보기: 각 페이지별로 나누어 출력됩니다. (1-2 / 3-1 / 3-2 / 4-5 / 6 / 7-8)")
-    
+    # [인쇄 모드] - config.py의 .section-header-container 기반 자동 분할과 물리적 분할 병행
     st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
     
+    # 1. 주간 전체 성과 요약
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
-    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 2. 주간 접근 경로 분석 (강제 분할 태그 추가)
+    st.markdown('<div class="section-header-container" style="page-break-before: always; height:0px; margin:0; padding:0;"></div>', unsafe_allow_html=True)
     views.render_traffic(df_traffic_curr, df_traffic_last)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
+    # 3-1. 지역별 분석
+    st.markdown('<div class="section-header-container" style="page-break-before: always; height:0px; margin:0; padding:0;"></div>', unsafe_allow_html=True)
     views.render_demo_region(df_region_curr, df_region_last)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
+    # 3-2. 연령/성별 분석
+    st.markdown('<div class="section-header-container" style="page-break-before: always; height:0px; margin:0; padding:0;"></div>', unsafe_allow_html=True)
     views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
+    # 4 & 5. 기사 상세 및 추이 (하나의 논리적 섹션으로 묶음)
+    st.markdown('<div class="section-header-container" style="page-break-before: always; height:0px; margin:0; padding:0;"></div>', unsafe_allow_html=True)
     views.render_top10_detail(df_top10)
     st.markdown("<br>", unsafe_allow_html=True)
-    # [수정] df_top10_sources 인자 추가
     views.render_top10_trends(df_top10, df_top10_sources)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
+    # 6. 카테고리별 분석
+    st.markdown('<div class="section-header-container" style="page-break-before: always; height:0px; margin:0; padding:0;"></div>', unsafe_allow_html=True)
     views.render_category(df_top10)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
+    # 7 & 8. 기자별 분석 (7번과 8번만 묶음)
+    st.markdown('<div class="section-header-container" style="page-break-before: always; height:0px; margin:0; padding:0;"></div>', unsafe_allow_html=True)
     views.render_writer_real(writers_df)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div style="margin-top: 10px;"></div>', unsafe_allow_html=True) 
     views.render_writer_pen(writers_df)
     
+    st.markdown('</div>', unsafe_allow_html=True) 
 
 else:
     # [일반 모드]
@@ -124,11 +124,9 @@ else:
         st.markdown("---")
         views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
     with tabs[3]: views.render_top10_detail(df_top10)
-    # [수정] df_top10_sources 인자 추가
     with tabs[4]: views.render_top10_trends(df_top10, df_top10_sources)
     with tabs[5]: views.render_category(df_top10)
     with tabs[6]: views.render_writer_real(writers_df)
     with tabs[7]: views.render_writer_pen(writers_df)
-
 
 st.markdown('<div class="footer-note no-print">※ 본 보고서는 쿡앤셰프(Cook&Chef) 홈페이지 및 애널리틱스 데이터를 활용하여 구성하였습니다.</div>', unsafe_allow_html=True)

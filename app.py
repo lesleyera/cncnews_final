@@ -22,13 +22,45 @@ st.set_page_config(
 st.markdown(config.CSS, unsafe_allow_html=True)
 st.markdown(config.PRINT_CSS, unsafe_allow_html=True)
 
+# 인쇄 모드 전용 추가 UI 스타일 (화면에서도 A4 종이처럼 보이게 함)
+st.markdown("""
+    <style>
+    @media screen {
+        .print-mode-container {
+            background-color: #e0e0e0;
+            padding: 40px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+        .a4-page-sheet {
+            background-color: white;
+            width: 297mm;
+            min-height: 210mm;
+            padding: 15mm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+    }
+    @media print {
+        .print-mode-container { background: none; padding: 0; gap: 0; }
+        .a4-page-sheet { 
+            width: 100%; 
+            box-shadow: none; 
+            padding: 0; 
+            margin: 0; 
+            page-break-after: always !important; 
+        }
+        .stMarkdown, .element-container { margin: 0 !important; }
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # 3. 보안 체크
 if not auth.check_password():
     st.stop()
-
-# =================================================================
-# ▼ 메인 로직 시작 ▼
-# =================================================================
 
 # 세션 상태 초기화
 if 'print_mode' not in st.session_state:
@@ -41,7 +73,6 @@ with c1:
 
 with c2:
     col_btn1, col_btn2 = st.columns(2)
-    # 인쇄 모드 토글 버튼
     if st.session_state['print_mode']:
         if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
             st.session_state['print_mode'] = False
@@ -67,56 +98,58 @@ st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('
  df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
  df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, df_top10_sources) = data.load_all_dashboard_data(selected_week)
 
-# 기자별 데이터 생성
 writers_df = data.get_writers_df_real(df_top10)
-
-# 발행 기사 수 계산
-published_article_count = 0
-if not writers_df.empty and '기사수' in writers_df.columns:
-    published_article_count = writers_df['기사수'].sum()
+published_article_count = writers_df['기사수'].sum() if not writers_df.empty and '기사수' in writers_df.columns else 0
 
 # 뷰 렌더링
 if st.session_state['print_mode']:
-    # [인쇄 모드] - 물리적으로 div를 찢어서 페이지 분리
-    st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
+    # [인쇄 모드 UI] - 아예 UI 자체를 독립된 종이 뭉치로 구성
+    st.markdown('<div class="print-mode-container">', unsafe_allow_html=True)
     
-    # 1. 성과 요약 (첫 페이지)
+    # Page 1: 성과 요약
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
-    
-    # 2. 접근 경로 (여기서부터 강제 분리)
-    st.markdown('<div style="page-break-before: always;"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Page 2: 접근 경로
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_traffic(df_traffic_curr, df_traffic_last)
-    
-    # 3-1. 지역 분석
-    st.markdown('<div style="page-break-before: always;"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Page 3: 방문자 지역
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_demo_region(df_region_curr, df_region_last)
-    
-    # 3-2. 연령/성별 분석
-    st.markdown('<div style="page-break-before: always;"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Page 4: 연령 및 성별
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
-    
-    # 4 & 5. TOP10 상세 및 추이 (하나의 논리적 묶음)
-    st.markdown('<div style="page-break-before: always;"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Page 5: TOP 10 상세 및 추이
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_top10_detail(df_top10)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
     views.render_top10_trends(df_top10, df_top10_sources)
-    
-    # 6. 카테고리별 분석
-    st.markdown('<div style="page-break-before: always;"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Page 6: 카테고리별 분석
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_category(df_top10)
-    
-    # 7 & 8. 기자별 분석 (7번과 8번은 한 페이지에 묶음)
-    st.markdown('<div style="page-break-before: always;"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Page 7: 기자별 분석 (7+8 통합)
+    st.markdown('<div class="a4-page-sheet">', unsafe_allow_html=True)
     views.render_writer_real(writers_df)
-    st.markdown('<div style="margin-top: 20px;"></div>', unsafe_allow_html=True) # 구분용 여백
+    st.markdown('<div style="height: 30px;"></div>', unsafe_allow_html=True)
     views.render_writer_pen(writers_df)
-    
+    st.markdown('</div>', unsafe_allow_html=True)
+
     st.markdown('</div>', unsafe_allow_html=True) 
 
 else:
-    # [일반 모드]
+    # [일반 모드 UI] - 탭 구조
     tabs = st.tabs(["1.성과요약", "2.접근경로", "3.방문자특성", "4.Top10상세", "5.Top10추이", "6.카테고리", "7.기자(본명)", "8.기자(필명)"])
-    
     with tabs[0]: views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
     with tabs[1]: views.render_traffic(df_traffic_curr, df_traffic_last)
     with tabs[2]: 

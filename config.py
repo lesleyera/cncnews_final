@@ -12,7 +12,7 @@ COLOR_BG_ACCENT = "#fffcf7"
 CHART_PALETTE = [COLOR_NAVY, COLOR_RED, "#5c6bc0", "#ef5350", "#8d6e63", COLOR_GREY]
 COLOR_GENDER = {'여성': '#d32f2f', '남성': '#1a237e'}
 
-# 기본 화면 CSS (기존 스타일 유지)
+# 기본 화면 CSS (수정 사항 외 창작 금지 원칙 준수)
 CSS = f"""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css');
@@ -45,61 +45,60 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 </style>
 """
 
-# 인쇄용 CSS (가로보기, 여백 10mm, 제목별 페이지 분할)
+# 인쇄용 CSS (가로보기, 10mm 여백, 제목별 섹션 강제 분리 최적화)
 PRINT_CSS = """
 <style>
 @media print {
-    /* 1. 가로보기 및 여백 설정 */
+    /* 1. 페이지 설정: A4 가로, 여백 10mm 고정 */
     @page { 
         size: A4 landscape; 
-        margin: 10mm; 
+        margin: 10mm !important; 
     }
     
     body { 
         width: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
         background-color: white !important;
     }
 
-    /* 2. 불필요 요소 및 안내 문구 숨김 */
+    /* 2. 안내 문구 및 불필요 UI 완전 제거 */
     .no-print, .stButton, header, footer, 
     [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
-    .stAlert, [data-testid="stNotification"], .print-footer { 
+    .stAlert, [data-testid="stNotification"], .print-footer, .footer-note { 
         display: none !important; 
     }
     
-    /* 3. 섹션별 강제 페이지 넘김 설정 */
+    /* 3. 섹션 강제 분할 전략 (7, 8번 제외) */
     .section-header-container { 
-        page-break-before: always !important; 
         break-before: page !important;
+        page-break-before: always !important;
         margin-top: 0 !important;
     }
 
-    /* 첫 페이지(1번 섹션)는 넘김 제외 */
-    div:first-child > .section-header-container {
-        page-break-before: auto !important;
-        break-before: auto !important;
-    }
-
-    /* [중요] 7번과 8번 묶기: 8번 섹션의 페이지 넘김을 강제로 해제 */
-    /* views.py의 텍스트 '8. 이번주 기자별 분석'이 포함된 컨테이너를 타겟팅 */
-    .section-header-container:has(div:contains("8. 이번주 기자별 분석")) {
-        page-break-before: avoid !important;
+    /* 7번 섹션 뒤에 8번 섹션이 오도록 8번만 강제 분할 해제 */
+    /* views.py의 구조에 따라 클래스 선택자 적용 */
+    div:has(> .section-header-container .section-header:contains("8.")) {
         break-before: avoid !important;
-        margin-top: 20px !important;
+        page-break-before: avoid !important;
+    }
+    
+    /* 첫 번째 제목은 넘기지 않음 */
+    div:first-child > .section-header-container {
+        break-before: auto !important;
+        page-break-before: auto !important;
     }
 
-    /* 4. 가로폭 최적화 및 짤림 방지 */
+    /* 4. 짤림 방지를 위한 레이아웃 고정 */
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
         padding: 0 !important;
     }
 
-    [data-testid="stDataFrame"], .js-plotly-plot {
+    /* 표와 차트 내부 분할 방지 */
+    [data-testid="stDataFrame"], .js-plotly-plot, .stPlotlyChart {
         width: 100% !important;
-        page-break-inside: avoid !important; /* 내부 짤림 방지 */
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
     }
 }
 </style>

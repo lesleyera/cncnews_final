@@ -29,7 +29,6 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 .period-info {{ font-size: 1.2rem; font-weight: 700; color: #455a64; margin-top: 10px; }}
 .update-time {{ color: {COLOR_NAVY}; font-weight: 700; font-size: 1.3rem; text-align: right; margin-top: -15px; margin-bottom: 30px; font-family: monospace; }}
 .kpi-container {{ background-color: #fff; border: 1px solid #eceff1; border-top: 5px solid {COLOR_RED}; border-radius: 8px; padding: 20px 10px; text-align: center; margin-bottom: 15px; height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }}
-/* [수정] 줄바꿈 허용을 위해 white-space: normal 로 변경 및 line-height 추가 */
 .kpi-label {{ font-size: 1.1rem; font-weight: 700; color: #455a64; margin-bottom: 8px; white-space: normal; line-height: 1.3; letter-spacing: -0.05em; }}
 .kpi-value {{ font-size: 2.0rem; font-weight: 900; color: {COLOR_NAVY}; line-height: 1.1; letter-spacing: -0.03em; }}
 .kpi-unit {{ font-size: 1.1rem; font-weight: 600; color: #90a4ae; margin-left: 3px; }}
@@ -49,59 +48,60 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 # 인쇄용 CSS
 PRINT_CSS = """
 <style>
-/* 1. 화면 미리보기용 (85% 축소) */
+/* 1. 화면 미리보기용 */
 .print-preview-layout {
-    transform: scale(0.85); 
-    transform-origin: top center; 
-    width: 117%;
+    width: 100%;
+    margin: 0 auto;
 }
 
 @media print {
-    /* 2. 페이지 설정 (A4 가로) */
+    /* 2. 페이지 설정: A4 가로, 여백 10mm */
     @page { 
         size: A4 landscape; 
         margin: 10mm; 
     }
     
     body { 
-        /* 요청하신 80% 배율 유지 */
-        transform: scale(0.8) !important; 
-        transform-origin: top left !important; 
-        width: 125% !important; /* 100/0.8 = 125 */
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background-color: white !important;
+    }
+
+    /* 3. 숨김 처리 */
+    .no-print, .stButton, header, footer, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"] { 
+        display: none !important; 
     }
     
-    /* 3. 숨김 처리 */
-    .no-print, .stButton, header, footer, [data-testid="stSidebar"] { display: none !important; }
-    
-    /* 4. 강제 페이지 넘김 클래스 정의 */
-    .page-break { 
+    /* 4. 섹션별 강제 페이지 넘김 (1탭 1페이지) */
+    .section-header-container { 
         page-break-before: always !important; 
         break-before: page !important;
-        display: block;
-        height: 1px;
-        margin-top: 20px;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }
-    
-    /* 5. 표(DataFrame) 가로폭 100% 강제 확장 */
-    [data-testid="stDataFrame"] {
+
+    /* 첫 번째 섹션 제외 */
+    div:first-child > .section-header-container {
+        page-break-before: auto !important;
+        break-before: auto !important;
+    }
+
+    /* 5. 콘텐츠 확장 */
+    .block-container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    [data-testid="stDataFrame"], .js-plotly-plot {
         width: 100% !important;
     }
-    [data-testid="stDataFrame"] > div {
-        width: 100% !important;
-    }
     
-    /* 6. 섹션 헤더 및 여백 조정 */
-    .section-header-container { margin-top: 10px !important; }
-    .block-container { padding-top: 0 !important; }
-    
-    /* 7. 인쇄용 푸터 */
-    .print-footer {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        text-align: center;
-        font-size: 12px;
-        color: #999;
+    /* 6. 인쇄용 푸터 영역 숨김 (문구 삭제) */
+    .print-footer { 
+        display: none !important; 
     }
 }
 </style>

@@ -5,8 +5,7 @@ from datetime import datetime, timedelta
 def clean_author_name(name):
     """기자 이름에서 불필요한 직함 등을 제거"""
     if not name: return "미상"
-    # 직함 제거: 전문기자, 기자, 전문 등
-    # '전문기자'를 먼저 제거하고 '전문'을 제거하여 오동작 방지
+    # 직함 제거: 전문기자, 기자, 전문 등 (보수적으로 순차 제거)
     name = name.replace('#', '').replace('전문기자', '').replace('기자', '').replace('전문', '').strip()
     return ' '.join(name.split())
 

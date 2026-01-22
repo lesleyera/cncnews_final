@@ -241,7 +241,15 @@ def load_all_dashboard_data(selected_week):
         res = run_ga4_report(ws, we, [], ["activeUsers", "screenPageViews"])
         if not res.empty and 'activeUsers' in res.columns and 'screenPageViews' in res.columns and len(res) > 0:
             try:
-                return {'주차': week_label, 'UV': int(res['activeUsers'].iloc[0]), 'PV': int(res['screenPageViews'].iloc[0])}
+                # 날짜 정보도 함께 저장
+                start_date_obj = datetime.strptime(ws, '%Y-%m-%d')
+                return {
+                    '주차': week_label, 
+                    'UV': int(res['activeUsers'].iloc[0]), 
+                    'PV': int(res['screenPageViews'].iloc[0]),
+                    'start_date': start_date_obj,
+                    'year': start_date_obj.year
+                }
             except: return None
         return None
 
@@ -255,11 +263,36 @@ def load_all_dashboard_data(selected_week):
             match = re.search(r'\d+', str(x))
             return int(match.group()) if match else 0
         df_weekly['week_num'] = df_weekly['주차'].apply(extract_week_num)
-        def sort_key(row): return 1000 + row['week_num'] if row['week_num'] == 1 else row['week_num']
+        
+        # 정렬: 연도 오름차순, 주차 오름차순 (2025년 이후 2026년 데이터가 오도록)
+        # 1주차 오른편에 2, 3, 4, ..., n주차가 오도록 배치
+        def sort_key(row):
+            year = row['year']
+            week_num = row['week_num']
+            # 1주차는 각 연도의 첫 번째에 배치 (작은 값 부여)
+            if week_num == 1:
+                return (year, 0)
+            # 2주차부터는 순서대로 (1주차 다음에 오도록)
+            return (year, week_num)
+        
         df_weekly['sort_key'] = df_weekly.apply(sort_key, axis=1)
-        df_weekly = df_weekly.sort_values('sort_key').drop(columns=['sort_key'])
+        df_weekly = df_weekly.sort_values('sort_key').drop(columns=['sort_key', 'week_num', 'start_date', 'year'])
     
-    active_article_count = 0 
+    # 3-1. GA4에서 활성기사 수 가져오기 (기간 내 조회가 발생한 고유 기사 수)
+    df_active_articles = run_ga4_report(s_dt, e_dt, ["pagePath"], ["screenPageViews"], "screenPageViews", limit=10000)
+    if not df_active_articles.empty:
+        # 기사 페이지 필터링 (article, news, view, story 포함)
+        mask_article = df_active_articles['pagePath'].str.contains(r'article|news|view|story', case=False, regex=True, na=False)
+        active_article_count = df_active_articles[mask_article].shape[0]
+        if active_article_count == 0:
+            # 필터링 결과가 없으면 전체 페이지 수 사용
+            active_article_count = df_active_articles[df_active_articles['pagePath'].str.len() > 1].shape[0]
+    else:
+        active_article_count = 0
+    
+    # 3-2. GA4에서 발행기사 수 가져오기 (기간 내 조회된 모든 고유 기사 수)
+    # 발행기사 수는 활성기사 수와 동일하게 계산 (기간 내 조회된 모든 기사)
+    published_article_count = active_article_count
 
     # 4. 유입경로
     def map_source(s):
@@ -342,11 +375,6 @@ def load_all_dashboard_data(selected_week):
     df_top10_sources = pd.DataFrame()
 
     if not df_raw_top.empty:
-        mask_article = df_raw_top['pagePath'].str.contains(r'article|news|view|story', case=False, regex=True, na=False)
-        active_article_count = df_raw_top[mask_article].shape[0]
-        if active_article_count == 0:
-            active_article_count = df_raw_top[df_raw_top['pagePath'].str.len() > 1].shape[0]
-        
         def is_excluded(row):
             t = str(row['pageTitle']).lower().replace(' ', '')
             if 'cook&chef' in t or '쿡앤셰프' in t: return True
@@ -472,7 +500,7 @@ def load_all_dashboard_data(selected_week):
 
     return (sel_uv, sel_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
             df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
-            df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, df_top10_sources)
+            df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, published_article_count, df_top10_sources)
 
 def get_writers_df_real(df_target):
     # 1. 엑셀 데이터로부터 매핑 딕셔너리 생성 (필명 -> 본명)

@@ -63,18 +63,13 @@ st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_we
 st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
 
 # 데이터 로드
-# [수정] data.py에서 반환하는 df_top10_sources 추가 수신 (총 18개 항목)
+# [수정] data.py에서 반환하는 published_article_count 추가 수신 (총 19개 항목)
 (cur_uv, cur_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
  df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
- df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, df_top10_sources) = data.load_all_dashboard_data(selected_week)
+ df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, published_article_count, df_top10_sources) = data.load_all_dashboard_data(selected_week)
 
 # 기자별 데이터 생성 (본명 기준)
 writers_df = data.get_writers_df_real(df_top10)
-
-# 발행 기사 수 계산 (기자별 기사 수 합계)
-published_article_count = 0
-if not writers_df.empty and '기사수' in writers_df.columns:
-    published_article_count = writers_df['기사수'].sum()
 
 # 뷰 렌더링
 if st.session_state['print_mode']:

@@ -278,21 +278,57 @@ def load_all_dashboard_data(selected_week):
         df_weekly['sort_key'] = df_weekly.apply(sort_key, axis=1)
         df_weekly = df_weekly.sort_values('sort_key').drop(columns=['sort_key', 'week_num', 'start_date', 'year'])
     
-    # 3-1. GA4에서 활성기사 수 가져오기 (기간 내 조회가 발생한 고유 기사 수)
+    # 3-1. GA4에서 활성기사 수 가져오기 (기간 내 조회가 발생한 고유 기사 주소 수)
     df_active_articles = run_ga4_report(s_dt, e_dt, ["pagePath"], ["screenPageViews"], "screenPageViews", limit=10000)
     if not df_active_articles.empty:
         # 기사 페이지 필터링 (article, news, view, story 포함)
         mask_article = df_active_articles['pagePath'].str.contains(r'article|news|view|story', case=False, regex=True, na=False)
-        active_article_count = df_active_articles[mask_article].shape[0]
-        if active_article_count == 0:
+        df_filtered_articles = df_active_articles[mask_article].copy()
+        if df_filtered_articles.empty:
             # 필터링 결과가 없으면 전체 페이지 수 사용
-            active_article_count = df_active_articles[df_active_articles['pagePath'].str.len() > 1].shape[0]
+            df_filtered_articles = df_active_articles[df_active_articles['pagePath'].str.len() > 1].copy()
+        # 고유한 기사 주소(pagePath) 개수 계산 (중복 제거)
+        active_article_count = df_filtered_articles['pagePath'].nunique()
     else:
         active_article_count = 0
+        df_filtered_articles = pd.DataFrame()
     
-    # 3-2. GA4에서 발행기사 수 가져오기 (기간 내 조회된 모든 고유 기사 수)
-    # 발행기사 수는 활성기사 수와 동일하게 계산 (기간 내 조회된 모든 기사)
-    published_article_count = active_article_count
+    # 3-2. 발행기사 수 계산 (해당 주차 기간 내 실제 발행된 기사 수)
+    published_article_count = 0
+    if not df_filtered_articles.empty:
+        # 기간 날짜 객체 생성
+        start_date_obj = datetime.strptime(s_dt, '%Y-%m-%d').date()
+        end_date_obj = datetime.strptime(e_dt, '%Y-%m-%d').date()
+        
+        # 모든 기사의 발행일시를 크롤링으로 가져오기 (병렬 처리)
+        article_paths = df_filtered_articles['pagePath'].unique().tolist()
+        published_dates = {}
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(crawl_single_article_cached, path): path for path in article_paths}
+            for future in concurrent.futures.as_completed(futures):
+                path = futures[future]
+                try:
+                    result = future.result(timeout=3.0)
+                    # result는 (author, likes, comments, cat, subcat, reg_date) 튜플
+                    reg_date = result[5] if len(result) > 5 else "-"
+                    published_dates[path] = reg_date
+                except:
+                    published_dates[path] = "-"
+        
+        # 발행일시가 해당 주차 기간 내에 있는 기사만 카운트
+        for path, reg_date_str in published_dates.items():
+            if reg_date_str != "-":
+                try:
+                    # 발행일시 파싱 (형식: "2026-01-07 10:30" 또는 "2026-01-07")
+                    date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', reg_date_str)
+                    if date_match:
+                        pub_date = datetime.strptime(date_match.group(0), '%Y-%m-%d').date()
+                        # 해당 주차 기간 내에 발행된 기사인지 확인
+                        if start_date_obj <= pub_date <= end_date_obj:
+                            published_article_count += 1
+                except:
+                    pass
 
     # 4. 유입경로
     def map_source(s):

@@ -84,7 +84,9 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     with c1:
         st.markdown('<div class="sub-header">📊 주간 일별 방문 추이</div>', unsafe_allow_html=True)
         if not df_daily.empty:
-            fig = px.bar(df_daily.melt(id_vars='날짜'), x='날짜', y='value', color='variable', barmode='group', color_discrete_map={'UV': COLOR_GREY, 'PV': COLOR_NAVY})
+            df_melted = df_daily.melt(id_vars='날짜')
+            fig = px.bar(df_melted, x='날짜', y='value', color='variable', barmode='group', color_discrete_map={'UV': COLOR_GREY, 'PV': COLOR_NAVY}, text='value')
+            fig.update_traces(texttemplate='%{text:,}', textposition='outside')
             fig.update_xaxes(type='category')
             fig.update_layout(legend_title_text=None, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             st.plotly_chart(fig, use_container_width=True, key="summary_daily_chart")

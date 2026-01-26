@@ -79,6 +79,20 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     for i, (l, v, u) in enumerate(kpis):
         v_f = f"{v:,}" if isinstance(v, (int, np.integer, float)) and l not in ["방문자당 페이지뷰", "신규 방문자 비율", "검색 유입 비율"] else str(v)
         cols[i].markdown(f'<div class="kpi-container"><div class="kpi-label">{l}</div><div class="kpi-value">{v_f}<span class="kpi-unit">{u}</span></div></div>', unsafe_allow_html=True)
+    
+    # 각 지표 산식 각주 추가
+    st.markdown("""
+    <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 4px; font-size: 0.9rem; color: #546e7a;">
+        <strong>※ 각 지표 산식:</strong><br>
+        • 활성 기사 수: 해당 주차 기간 내 조회가 발생한 고유 기사 주소(pagePath) 수<br>
+        • 발행 기사 수: 해당 주차 기간 내 실제 발행된 기사 수 (6. 카테고리별 분석의 기사 수 합계)<br>
+        • 지난 7일 간 조회수(PV): 해당 주차 기간 내 총 화면 조회수<br>
+        • 지난 7일 간 방문자수(UV): 해당 주차 기간 내 총 활성 사용자 수<br>
+        • 방문자당 페이지뷰: 총 조회수 ÷ 총 방문자수<br>
+        • 신규 방문자 비율: 신규 사용자 수 ÷ 총 방문자수 × 100<br>
+        • 검색 유입 비율: 검색 엔진을 통한 유입 세션 수 ÷ 총 세션 수 × 100
+    </div>
+    """, unsafe_allow_html=True)
         
     c1, c2 = st.columns(2)
     with c1:

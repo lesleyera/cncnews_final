@@ -354,7 +354,7 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             short_titles_ordered = [t[:30] + '...' if len(str(t)) > 30 else str(t) for t in df_top10_sorted['제목'].tolist()]
             full_titles_ordered = df_top10_sorted['제목'].tolist()
             
-            # 정규화된 조회수 사용
+            # 정규화된 조회수 사용 (위의 표의 조회수 기준)
             fig = px.bar(
                 df_src, 
                 x='screenPageViews_normalized',   
@@ -364,12 +364,13 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 title='기사별 유입경로 비중',
                 orientation='h',       
                 color_discrete_sequence=CHART_PALETTE,
-                hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True, '발행일시': True, '작성자': True}
+                hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True, '발행일시': True, '작성자': True, 'page_url': True}
             )
             
             # hover 템플릿 수정 - 전체 제목을 맨 위에 명확히 표시
+            # customdata: [top_detail, screenPageViews_normalized, 기사제목, 순위, total_pv_from_top10, 발행일시, 작성자, page_url]
             fig.update_traces(
-                hovertemplate='<b>전체 제목: %{customdata[2]}</b><br>순위: %{customdata[4]}위<br>작성자: %{customdata[7]}<br>발행일시: %{customdata[6]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', 
+                hovertemplate='<b>전체 제목: %{customdata[2]}</b><br>순위: %{customdata[3]}위<br>작성자: %{customdata[6]}<br>발행일시: %{customdata[5]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[4]:,.0f}<extra></extra>', 
                 texttemplate='%{text:,}', 
                 textposition='outside',
                 hoverlabel=dict(bgcolor="white", font_size=12, font_family="Pretendard")
@@ -384,6 +385,10 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             
             # y축 순서 설정 - 순위별로 내려가게 (1위가 위, 10위가 아래)
             fig.update_yaxes(categoryorder='array', categoryarray=short_titles_ordered)
+            
+            # 페이지 URL 매핑 (경로 -> 전체 URL)
+            path_to_url = dict(zip(df_src['pagePath'], df_src['page_url']))
+            path_to_url_js = str(path_to_url).replace("'", "\\'")
             
             # y축 레이블에 마우스를 올렸을 때 노란 배경의 커스텀 툴팁 표시
             full_titles_js = str(full_titles_ordered).replace("'", "\\'")
@@ -500,6 +505,37 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 const plotDiv = document.querySelector('[data-testid="stPlotlyChart"]');
                 if (plotDiv) {{
                     plotDiv.addEventListener('plotly_afterplot', addHoverEvents);
+                }}
+                
+                // 바 클릭 시 페이지 이동 기능
+                function addClickEvents() {{
+                    const plotDiv = document.querySelector('.js-plotly-plot');
+                    if (plotDiv) {{
+                        plotDiv.on('plotly_click', function(data) {{
+                            if (data.points && data.points.length > 0) {{
+                                const point = data.points[0];
+                                // customdata에서 page_url 가져오기
+                                if (point.customdata && point.customdata.length > 0) {{
+                                    const customData = point.customdata;
+                                    // customdata 배열에서 page_url 찾기 (마지막 요소)
+                                    const pageUrl = customData[customData.length - 1];
+                                    if (pageUrl) {{
+                                        // 새 창에서 열기
+                                        window.open(pageUrl, '_blank');
+                                    }}
+                                }}
+                            }}
+                        }});
+                    }}
+                }}
+                
+                // 차트가 렌더링된 후 클릭 이벤트 추가
+                setTimeout(addClickEvents, 1500);
+                
+                // Plotly 이벤트 리스너 추가
+                const plotDivForClick = document.querySelector('[data-testid="stPlotlyChart"]');
+                if (plotDivForClick) {{
+                    plotDivForClick.addEventListener('plotly_afterplot', addClickEvents);
                 }}
             }})();
             </script>

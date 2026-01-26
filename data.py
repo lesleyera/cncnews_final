@@ -294,6 +294,13 @@ def load_all_dashboard_data(selected_week):
     def fetch_week_data(week_label, date_str):
         ws, we = date_str.split(' ~ ')[0].replace('.', '-'), date_str.split(' ~ ')[1].replace('.', '-')
         res = run_ga4_report(ws, we, [], ["activeUsers", "screenPageViews"])
+        
+        # 해당 주차의 최다 조회수 기사 제목 가져오기
+        top_article_title = ""
+        top_article_res = run_ga4_report(ws, we, ["pageTitle", "pagePath"], ["screenPageViews"], "screenPageViews", limit=1)
+        if not top_article_res.empty:
+            top_article_title = top_article_res['pageTitle'].iloc[0] if 'pageTitle' in top_article_res.columns else ""
+        
         if not res.empty and 'activeUsers' in res.columns and 'screenPageViews' in res.columns and len(res) > 0:
             try:
                 # 날짜 정보도 함께 저장
@@ -303,7 +310,8 @@ def load_all_dashboard_data(selected_week):
                     'UV': int(res['activeUsers'].iloc[0]), 
                     'PV': int(res['screenPageViews'].iloc[0]),
                     'start_date': start_date_obj,
-                    'year': start_date_obj.year
+                    'year': start_date_obj.year,
+                    'top_article': top_article_title
                 }
             except: return None
         return None
@@ -331,6 +339,7 @@ def load_all_dashboard_data(selected_week):
             return (year, week_num)
         
         df_weekly['sort_key'] = df_weekly.apply(sort_key, axis=1)
+        # top_article 컬럼은 유지 (최대값 호버에서 사용)
         df_weekly = df_weekly.sort_values('sort_key').drop(columns=['sort_key', 'week_num', 'start_date', 'year'])
     
     # 3-1. GA4에서 활성기사 수 가져오기 (기간 내 조회가 발생한 고유 기사 주소 수)

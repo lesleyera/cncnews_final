@@ -162,7 +162,7 @@ if st.session_state['print_mode']:
     views.render_top10_trends(df_top10, df_top10_sources)
     
     # 6. 카테고리별 분석
-    views.render_category(df_top10)
+    views.render_category(df_published_all_week)
     
     # 7. 기자별 분석
     views.render_writer_analysis(writers_df_real, writers_df_pen)
@@ -227,7 +227,7 @@ else:
     # [수정] df_top10_sources 인자 추가
     with tabs[4]: views.render_top10_trends(df_top10, df_top10_sources)
     with tabs[5]: 
-        views.render_category(df_top10)
+        views.render_category(df_published_all_week)
         # 발행기사 수는 이미 위에서 카테고리별 기사 수 합으로 계산됨
     with tabs[6]: views.render_writer_analysis(writers_df_real, writers_df_pen)
 

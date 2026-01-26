@@ -115,9 +115,115 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     with c2:
         st.markdown('<div class="sub-header">📈 최근 3달 간 추이 분석</div>', unsafe_allow_html=True)
         if not df_weekly.empty:
+            # 최다 조회수 기사 제목이 있으면 hover 데이터로 추가
+            uv_hover = []
+            pv_hover = []
+            if 'top_article' in df_weekly.columns:
+                for idx, row in df_weekly.iterrows():
+                    uv_hover.append(f"주차: {row['주차']}<br>UV: {row['UV']:,}<br>최다 조회 기사: {row['top_article']}")
+                    pv_hover.append(f"주차: {row['주차']}<br>PV: {row['PV']:,}<br>최다 조회 기사: {row['top_article']}")
+            else:
+                uv_hover = [f"주차: {row['주차']}<br>UV: {row['UV']:,}" for idx, row in df_weekly.iterrows()]
+                pv_hover = [f"주차: {row['주차']}<br>PV: {row['PV']:,}" for idx, row in df_weekly.iterrows()]
+            
             fig2 = go.Figure()
-            fig2.add_trace(go.Bar(x=df_weekly['주차'], y=df_weekly['UV'], name='UV', marker_color=COLOR_GREY))
-            fig2.add_trace(go.Bar(x=df_weekly['주차'], y=df_weekly['PV'], name='PV', marker_color=COLOR_NAVY))
+            fig2.add_trace(go.Bar(
+                x=df_weekly['주차'], 
+                y=df_weekly['UV'], 
+                name='UV', 
+                marker_color=COLOR_GREY,
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=uv_hover
+            ))
+            fig2.add_trace(go.Bar(
+                x=df_weekly['주차'], 
+                y=df_weekly['PV'], 
+                name='PV', 
+                marker_color=COLOR_NAVY,
+                hovertemplate='%{hovertext}<extra></extra>',
+                hovertext=pv_hover
+            ))
+            
+            # 3달 간 평균 계산 및 붉은 점선 표시
+            avg_uv = df_weekly['UV'].mean()
+            avg_pv = df_weekly['PV'].mean()
+            
+            fig2.add_trace(go.Scatter(
+                x=df_weekly['주차'], 
+                y=[avg_uv] * len(df_weekly), 
+                name='UV 평균', 
+                mode='lines',
+                line=dict(color='red', width=2, dash='dot'),
+                hovertemplate='UV 평균: %{y:,.0f}<extra></extra>'
+            ))
+            
+            fig2.add_trace(go.Scatter(
+                x=df_weekly['주차'], 
+                y=[avg_pv] * len(df_weekly), 
+                name='PV 평균', 
+                mode='lines',
+                line=dict(color='red', width=2, dash='dot'),
+                hovertemplate='PV 평균: %{y:,.0f}<extra></extra>'
+            ))
+            
+            # UV, PV 최대값, 최소값 찾기
+            max_uv_idx = df_weekly['UV'].idxmax()
+            min_uv_idx = df_weekly['UV'].idxmin()
+            max_pv_idx = df_weekly['PV'].idxmax()
+            min_pv_idx = df_weekly['PV'].idxmin()
+            
+            max_uv_week = df_weekly.loc[max_uv_idx, '주차']
+            min_uv_week = df_weekly.loc[min_uv_idx, '주차']
+            max_pv_week = df_weekly.loc[max_pv_idx, '주차']
+            min_pv_week = df_weekly.loc[min_pv_idx, '주차']
+            
+            max_uv_value = df_weekly.loc[max_uv_idx, 'UV']
+            min_uv_value = df_weekly.loc[min_uv_idx, 'UV']
+            max_pv_value = df_weekly.loc[max_pv_idx, 'PV']
+            min_pv_value = df_weekly.loc[min_pv_idx, 'PV']
+            
+            # 최대값, 최소값에 주황색 주석 추가
+            annotations = []
+            
+            # UV 최대값 (주황색)
+            annotations.append(dict(
+                x=max_uv_week, y=max_uv_value,
+                text=f"{max_uv_value:,}",
+                showarrow=True, arrowhead=2, arrowcolor='orange',
+                font=dict(color='orange', size=11, family='Pretendard'),
+                bgcolor='white', bordercolor='orange', borderwidth=1,
+                ax=0, ay=-30
+            ))
+            
+            # UV 최소값 (주황색)
+            annotations.append(dict(
+                x=min_uv_week, y=min_uv_value,
+                text=f"{min_uv_value:,}",
+                showarrow=True, arrowhead=2, arrowcolor='orange',
+                font=dict(color='orange', size=11, family='Pretendard'),
+                bgcolor='white', bordercolor='orange', borderwidth=1,
+                ax=0, ay=30
+            ))
+            
+            # PV 최대값 (주황색)
+            annotations.append(dict(
+                x=max_pv_week, y=max_pv_value,
+                text=f"{max_pv_value:,}",
+                showarrow=True, arrowhead=2, arrowcolor='orange',
+                font=dict(color='orange', size=11, family='Pretendard'),
+                bgcolor='white', bordercolor='orange', borderwidth=1,
+                ax=0, ay=-30
+            ))
+            
+            # PV 최소값 (주황색)
+            annotations.append(dict(
+                x=min_pv_week, y=min_pv_value,
+                text=f"{min_pv_value:,}",
+                showarrow=True, arrowhead=2, arrowcolor='orange',
+                font=dict(color='orange', size=11, family='Pretendard'),
+                bgcolor='white', bordercolor='orange', borderwidth=1,
+                ax=0, ay=30
+            ))
             
             week_labels = df_weekly['주차'].tolist()
             year_boundary_idx = None
@@ -132,7 +238,14 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
             if year_boundary_idx is not None:
                 fig2.add_vline(x=year_boundary_idx, line_dash="dot", line_width=1, line_color="#78909c", opacity=0.7, annotation_text="2025/2026", annotation_position="top", annotation_font_size=10, annotation_font_color="#78909c")
             
-            fig2.update_layout(barmode='group', plot_bgcolor='white', margin=dict(t=30), yaxis=dict(tickformat=","), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            fig2.update_layout(
+                barmode='group', 
+                plot_bgcolor='white', 
+                margin=dict(t=30), 
+                yaxis=dict(tickformat=","), 
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                annotations=annotations
+            )
             st.plotly_chart(fig2, use_container_width=True, key="summary_weekly_chart")
 
 # ----------------- 2. 접근 경로 -----------------
@@ -156,7 +269,7 @@ def render_traffic(df_traffic_curr, df_traffic_last):
     
     df_m.sort_values('이번주 비중', ascending=False, inplace=True)
     
-    st.dataframe(df_m[['유입경로', '이번주 비중', '지난주 비중', '비중 변화']].copy().assign(**{'비중 변화': lambda x: x['비중 변화'].apply(lambda v: f"{v:+.1f}%p")}), use_container_width=True, hide_index=True)
+    st.table(df_m[['유입경로', '이번주 비중', '지난주 비중', '비중 변화']].copy().assign(**{'비중 변화': lambda x: x['비중 변화'].apply(lambda v: f"{v:+.1f}%p")}))
 
 # ----------------- 3. 방문자 특성 (지역) -----------------
 def render_demo_region(df_region_curr, df_region_last):
@@ -195,7 +308,7 @@ def render_demo_region(df_region_curr, df_region_last):
         df_disp['지난주(%)'] = df_disp['비율_지난'].astype(str) + '%'
         df_disp['변화(%p)'] = df_disp['변화(%p)'].apply(lambda x: f"{x:+.1f}%p")
         # 스크롤 없이 전체 지역 나열
-        st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True)
+        st.table(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']])
 
 # ----------------- 3. 방문자 특성 (연령/성별) -----------------
 def render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last):
@@ -237,7 +350,7 @@ def render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_l
             df_disp['이번주(%)'] = df_disp['비율_이번'].astype(str) + '%'
             df_disp['지난주(%)'] = df_disp['비율_지난'].astype(str) + '%'
             df_disp['변화(%p)'] = df_disp['변화(%p)'].apply(lambda x: f"{x:+.1f}%p")
-            st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True)
+            st.table(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']])
         st.markdown("<hr>", unsafe_allow_html=True)
 
 # ----------------- 4. Top 10 상세 -----------------
@@ -267,7 +380,7 @@ def render_top10_detail(df_top10, df_published_top10=None):
         cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
         # 존재하는 컬럼만 선택
         available_cols = [c for c in cols if c in df_p4_display.columns]
-        st.dataframe(df_p4_display[available_cols], use_container_width=True, hide_index=True)
+        st.table(df_p4_display[available_cols])
     
     # 4-1. 최근 발행기사 기준
     if df_published_top10 is not None and not df_published_top10.empty:
@@ -296,7 +409,7 @@ def render_top10_detail(df_top10, df_published_top10=None):
         cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
         # 존재하는 컬럼만 선택
         available_cols = [c for c in cols if c in df_pub_display.columns]
-        st.dataframe(df_pub_display[available_cols], use_container_width=True, hide_index=True)
+        st.table(df_pub_display[available_cols])
 
 # ----------------- 5. Top 10 추이 -----------------
 def render_top10_trends(df_top10, df_top10_sources=None):
@@ -317,7 +430,7 @@ def render_top10_trends(df_top10, df_top10_sources=None):
         if '유입경로 1순위' not in df_p5.columns:
             df_p5['유입경로 1순위'] = "-"
             
-        st.dataframe(df_p5[cols], use_container_width=True, hide_index=True)
+        st.table(df_p5[cols])
         
         if df_top10_sources is not None and not df_top10_sources.empty:
             # df_top10의 순위 순서대로 정렬
@@ -598,10 +711,10 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             st.warning("기사별 유입경로 상세 데이터가 없습니다.")
 
 # ----------------- 6. 카테고리 -----------------
-def render_category(df_top10):
+def render_category(df_published_all):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
-    if not df_top10.empty:
-        df_real = df_top10
+    if not df_published_all.empty:
+        df_real = df_published_all
         # 메인 카테고리
         cat_main = df_real.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_main = cat_main['기사수'].sum()
@@ -617,7 +730,7 @@ def render_category(df_top10):
         
         st.markdown('<div class="chart-header">1. 메인 카테고리별 기사 수</div>', unsafe_allow_html=True)
         st.plotly_chart(px.bar(cat_main, x='카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(showlegend=False, plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_main_chart")
-        st.dataframe(cat_main[['카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
+        st.table(cat_main[['카테고리', '기사수', '전체조회수', '평균조회수']])
 
         # 세부 카테고리
         st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
@@ -634,7 +747,7 @@ def render_category(df_top10):
         cat_sub['전체조회수'] = cat_sub['전체조회수'].map('{:,}'.format)
         
         st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
-        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
+        st.table(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']])
         
         # [수정] 각주 추가
         st.markdown("<div style='font-size: 0.85rem; color: #78909c; margin-top: 5px;'>* 평균조회수: 카테고리 전체 조회수 ÷ 카테고리 기사 수</div>", unsafe_allow_html=True)
@@ -654,7 +767,7 @@ def render_writer_analysis(writers_df_real, writers_df_pen):
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.dataframe(disp_w, use_container_width=True, hide_index=True)
+        st.table(disp_w)
     else:
         st.info("본명 기준 기자 실적 없음")
     
@@ -667,6 +780,6 @@ def render_writer_analysis(writers_df_real, writers_df_pen):
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.dataframe(disp_w, use_container_width=True, hide_index=True)
+        st.table(disp_w)
     else:
         st.info("필명 기준 기자 실적 없음")

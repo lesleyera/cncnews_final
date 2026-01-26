@@ -92,8 +92,15 @@ PRINT_CSS = """
     .no-print, .stButton, header, footer, 
     [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
     .stAlert, [data-testid="stNotification"], .footer-note,
-    .report-title, .period-info, .update-time { 
-        display: none !important; 
+    .report-title, .period-info, .update-time,
+    .print-mode-button-area,
+    [class*="stButton"],
+    [data-testid="stButton"] { 
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        visibility: hidden !important;
     }
     
     /* 3. 섹션 강제 분할 - 각 섹션을 독립 페이지로 */
@@ -124,6 +131,31 @@ PRINT_CSS = """
         width: 100% !important;
         padding: 0 !important;
         margin: 0 !important;
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+    }
+    
+    /* 인쇄 모드에서 버튼 영역 완전히 제거 */
+    .stButton,
+    [class*="stButton"],
+    [data-testid="stButton"] {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* 인쇄 모드에서 첫 번째 섹션이 페이지 상단에서 시작 */
+    .print-preview-layout {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    .print-preview-layout .section-header-container:first-of-type {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+        break-before: auto !important;
+        page-break-before: auto !important;
     }
 
     /* 6. 테이블 및 차트 분할 방지 */
@@ -209,6 +241,8 @@ PRINT_CSS = """
     width: 100%;
     min-height: 100vh;
     display: block !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
 }
 
 /* 인쇄 미리보기 모드에서 모든 콘텐츠 표시 */
@@ -227,11 +261,25 @@ PRINT_CSS = """
     overflow: visible !important;
 }
 
-/* 인쇄 미리보기에서 헤더 숨김 */
+/* 인쇄 미리보기에서 헤더와 버튼 숨김 */
 .print-preview-layout ~ .report-title,
 .print-preview-layout ~ .period-info,
-.print-preview-layout ~ .update-time {
+.print-preview-layout ~ .update-time,
+.print-preview-layout ~ .stButton,
+.print-preview-layout ~ [class*="stButton"] {
     display: none !important;
+}
+
+/* 인쇄 미리보기에서 첫 번째 섹션이 상단에서 시작 */
+.print-preview-layout .section-header-container:first-of-type {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* 인쇄 미리보기에서 block-container padding 제거 */
+.print-preview-layout ~ .block-container {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
 </style>
 """

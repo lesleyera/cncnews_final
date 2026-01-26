@@ -507,6 +507,44 @@ def load_all_dashboard_data(selected_week):
         df_top10['체류시간_fmt'] = df_top10['평균체류시간'].apply(format_duration)
         df_top10['발행일시'] = df_top10['실발행일시']
         
+        # 24시간, 48시간 방문자 수 추가 (효율적인 방법: 한 번의 쿼리로 모든 기사 조회)
+        today = datetime.now().date()
+        yesterday = (datetime.now() - timedelta(days=1)).date()
+        two_days_ago = (datetime.now() - timedelta(days=2)).date()
+        
+        # 24시간 방문자 수 (어제부터 오늘까지)
+        df_24h_all = run_ga4_report(
+            yesterday.strftime('%Y-%m-%d'), 
+            today.strftime('%Y-%m-%d'),
+            ['pagePath'],
+            ['activeUsers'],
+            order_by_metric='activeUsers',
+            limit=10000
+        )
+        visitor_24h = {}
+        if not df_24h_all.empty:
+            for _, row in df_24h_all.iterrows():
+                path = row['pagePath']
+                visitor_24h[path] = int(row['activeUsers']) if pd.notna(row['activeUsers']) else 0
+        
+        # 48시간 방문자 수 (2일 전부터 오늘까지)
+        df_48h_all = run_ga4_report(
+            two_days_ago.strftime('%Y-%m-%d'), 
+            today.strftime('%Y-%m-%d'),
+            ['pagePath'],
+            ['activeUsers'],
+            order_by_metric='activeUsers',
+            limit=10000
+        )
+        visitor_48h = {}
+        if not df_48h_all.empty:
+            for _, row in df_48h_all.iterrows():
+                path = row['pagePath']
+                visitor_48h[path] = int(row['activeUsers']) if pd.notna(row['activeUsers']) else 0
+        
+        df_top10['24시간방문자수'] = df_top10['경로'].map(visitor_24h).fillna(0)
+        df_top10['48시간방문자수'] = df_top10['경로'].map(visitor_48h).fillna(0)
+        
         if 'newUsers' in df_top10.columns and '전체방문자수' in df_top10.columns:
             df_top10['신규방문자비율'] = df_top10.apply(
                 lambda row: f"{round((float(row['newUsers']) / float(row['전체방문자수']) * 100), 1) if float(row['전체방문자수']) > 0 else 0}%",
@@ -604,6 +642,10 @@ def load_all_dashboard_data(selected_week):
                 except: return "0분 0초"
             df_published['체류시간_fmt'] = df_published['평균체류시간'].apply(format_duration)
             df_published['발행일시'] = df_published['실발행일시']
+            
+            # 24시간, 48시간 방문자 수 추가 (df_top10과 동일한 방식)
+            df_published['24시간방문자수'] = df_published['경로'].map(visitor_24h).fillna(0)
+            df_published['48시간방문자수'] = df_published['경로'].map(visitor_48h).fillna(0)
             
             if 'newUsers' in df_published.columns and '전체방문자수' in df_published.columns:
                 df_published['신규방문자비율'] = df_published.apply(

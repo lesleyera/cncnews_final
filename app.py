@@ -49,7 +49,7 @@ with c1:
 
 with c2:
     col_btn1, col_btn2 = st.columns(2)
-    # PDF 저장 버튼 (브라우저 인쇄 기능 사용)
+    # 인쇄 미리보기 모드 토글
     if st.session_state['print_mode']:
         if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
             st.session_state['print_mode'] = False
@@ -63,14 +63,10 @@ with c2:
             """
             st.components.v1.html(print_script, height=0, width=0)
     else:
-        # 일반 모드에서 브라우저 인쇄 기능 사용
-        if col_btn2.button("🖨️ 인쇄/PDF 저장", type="primary"):
-            print_script = """
-            <script>
-            window.print();
-            </script>
-            """
-            st.components.v1.html(print_script, height=0, width=0)
+        # 일반 모드에서 인쇄 미리보기 버튼
+        if col_btn2.button("🖨️ 인쇄 미리보기", type="primary"):
+            st.session_state['print_mode'] = True
+            st.rerun()
         
     if not st.session_state['print_mode']:
         selected_week = st.selectbox("📅 조회 주차", list(WEEK_MAP.keys()), key="week_select", label_visibility="collapsed")
@@ -90,20 +86,31 @@ st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('
 # 기자별 데이터 생성 (본명 기준, 필명 기준)
 writers_df_real, writers_df_pen = data.get_writers_df_real(df_top10)
 
-# 발행기사 수는 data.py에서 계산한 값을 사용 (df_top10은 TOP 10만 포함하므로 사용하지 않음)
-# published_article_count는 이미 data.load_all_dashboard_data에서 계산됨
+# 발행기사 수는 6. 카테고리의 발행기사수 합으로 정의 (나중에 render_category에서 계산)
+# 초기값은 data.py에서 계산한 값 사용
+
+# 발행기사 수를 카테고리별 기사 수 합으로 계산 (6. 카테고리 섹션에서 계산)
+# 인쇄 모드와 일반 모드 모두에서 미리 계산
+if not df_top10.empty:
+    # 카테고리별 기사 수 합계 계산
+    category_count = df_top10.groupby('카테고리').agg(기사수=('제목','count')).reset_index()
+    published_article_count = category_count['기사수'].sum()
 
 # 뷰 렌더링
 if st.session_state['print_mode']:
-    # [인쇄 모드]    
+    # [인쇄 모드] - 모든 섹션을 순차적으로 표시
     st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
     
+    # 1. 성과 요약
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
     st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 2. 접근 경로
     views.render_traffic(df_traffic_curr, df_traffic_last)
     
     st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
+    # 3. 방문자 특성
     views.render_demo_region(df_region_curr, df_region_last)
     
     st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
@@ -112,17 +119,21 @@ if st.session_state['print_mode']:
     
     st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
+    # 4. Top10 상세
     views.render_top10_detail(df_top10, df_published_top10)
     st.markdown("<br>", unsafe_allow_html=True)
-    # [수정] df_top10_sources 인자 추가
+    
+    # 5. Top10 추이
     views.render_top10_trends(df_top10, df_top10_sources)
     
     st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
+    # 6. 카테고리별 분석
     views.render_category(df_top10)
     
     st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
+    # 7. 기자별 분석
     views.render_writer_analysis(writers_df_real, writers_df_pen)
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -185,9 +196,8 @@ else:
     # [수정] df_top10_sources 인자 추가
     with tabs[4]: views.render_top10_trends(df_top10, df_top10_sources)
     with tabs[5]: 
-        category_count = views.render_category(df_top10)
-        # 카테고리별 기사 수는 df_top10 기반이므로 참고용으로만 사용
-        # 실제 발행기사 수는 data.py에서 계산한 published_article_count 사용
+        views.render_category(df_top10)
+        # 발행기사 수는 이미 위에서 카테고리별 기사 수 합으로 계산됨
     with tabs[6]: views.render_writer_analysis(writers_df_real, writers_df_pen)
 
 st.markdown('<div class="footer-note no-print">※ 본 보고서는 쿡앤셰프(Cook&Chef) 홈페이지 및 애널리틱스 데이터를 활용하여 구성하였습니다.</div>', unsafe_allow_html=True)

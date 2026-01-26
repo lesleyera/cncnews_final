@@ -359,10 +359,15 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             # y축 레이블을 더 길게 표시 (30자까지) - 전체 제목이 더 잘 보이도록
             df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:30] + '...' if len(str(x)) > 30 else str(x))
             
-            # 순위 순서대로 정렬 (1위부터 10위까지) - 순위별로 내려가게 (1위가 위, 10위가 아래)
-            df_top10_sorted = df_top10.sort_values('순위', ascending=True)
+            # 순위 순서대로 정렬 (1위부터 10위까지) - 4페이지와 동일한 순서 보장
+            # df_top10의 순위 순서를 그대로 사용하여 그래프 순서 일치
+            df_top10_sorted = df_top10.sort_values('순위', ascending=True).reset_index(drop=True)
             short_titles_ordered = [t[:30] + '...' if len(str(t)) > 30 else str(t) for t in df_top10_sorted['제목'].tolist()]
             full_titles_ordered = df_top10_sorted['제목'].tolist()
+            
+            # df_src의 기사제목도 df_top10의 순위 순서에 맞춰 정렬
+            # 경로 기준으로 순위 매핑하여 정렬
+            df_src = df_src.sort_values(['순위', '유입경로']).reset_index(drop=True)
             
             # 정규화된 조회수 사용 (위의 표의 조회수 기준)
             # custom_data에 필요한 정보 포함 (클릭 이벤트용)

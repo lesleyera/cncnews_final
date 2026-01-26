@@ -497,32 +497,49 @@ def load_all_dashboard_data(selected_week):
         
         # 조회수 기준으로 정렬하고 상위 10개 선택
         df_sorted = df_grouped.sort_values('screenPageViews', ascending=False).head(10)
-        paths = df_sorted['pagePath_normalized'].tolist()
+        paths_normalized = df_sorted['pagePath_normalized'].tolist()
         
-        if paths:
-            # 6-1. 유입경로 데이터 수집 (Raw Data) - 정규화된 경로 사용
-            filter_ex = FilterExpression(
-                filter=Filter(
-                    field_name="pagePath",
-                    in_list_filter=Filter.InListFilter(values=paths, case_sensitive=False)
+        if paths_normalized:
+            # 6-1. 유입경로 데이터 수집 (Raw Data)
+            # 정규화된 경로에 대응하는 모든 원본 경로 찾기 (GA4 필터링용)
+            # df_raw_top에서 정규화된 경로에 매칭되는 모든 원본 경로 수집
+            all_original_paths = []
+            for norm_path in paths_normalized:
+                # 정규화된 경로와 매칭되는 원본 경로들 찾기
+                matching = df_raw_top[df_raw_top['pagePath_normalized'] == norm_path]
+                if not matching.empty:
+                    all_original_paths.extend(matching['pagePath'].unique().tolist())
+            
+            all_original_paths = list(set(all_original_paths))  # 중복 제거
+            
+            if all_original_paths:
+                filter_ex = FilterExpression(
+                    filter=Filter(
+                        field_name="pagePath",
+                        in_list_filter=Filter.InListFilter(values=all_original_paths, case_sensitive=False)
+                    )
                 )
-            )
-            df_sources_raw = run_ga4_report(
-                s_dt, e_dt, 
-                ["pagePath", "sessionSource"], 
-                ["screenPageViews"], 
-                limit=1000, 
-                dimension_filter=filter_ex
-            )
+                df_sources_raw = run_ga4_report(
+                    s_dt, e_dt, 
+                    ["pagePath", "sessionSource"], 
+                    ["screenPageViews"], 
+                    limit=1000, 
+                    dimension_filter=filter_ex
+                )
+            else:
+                df_sources_raw = pd.DataFrame()
             
             if not df_sources_raw.empty:
                 # URL 정규화 적용
                 df_sources_raw['pagePath_normalized'] = df_sources_raw['pagePath'].apply(normalize_page_path)
                 
+                # 정규화된 경로가 top10에 포함되는지 확인 (필터링)
+                df_sources_raw = df_sources_raw[df_sources_raw['pagePath_normalized'].isin(paths_normalized)]
+                
                 # category (네이버, 구글 등) 매핑
                 df_sources_raw['category'] = df_sources_raw['sessionSource'].apply(map_source)
                 
-                # 정규화된 pagePath 기준으로 집계
+                # 정규화된 pagePath 기준으로 집계 (동일 기사 통합)
                 # [A] 테이블용: 기사별로 가장 많이 유입된 경로 찾기
                 # pagePath_normalized별로 조회수 내림차순 정렬 후 첫 번째 행 추출
                 df_best_source = df_sources_raw.sort_values('screenPageViews', ascending=False).drop_duplicates('pagePath_normalized')
@@ -537,7 +554,7 @@ def load_all_dashboard_data(selected_week):
                 df_grp_best = df_sources_raw.sort_values('screenPageViews', ascending=False).drop_duplicates(['pagePath_normalized', 'category'])
                 df_grp_best = df_grp_best[['pagePath_normalized', 'category', 'sessionSource']].rename(columns={'sessionSource': 'top_detail'})
                 
-                # B-2. 그룹별 조회수 합계 (정규화된 경로 기준)
+                # B-2. 그룹별 조회수 합계 (정규화된 경로 기준으로 동일 기사 통합)
                 df_grp_sum = df_sources_raw.groupby(['pagePath_normalized', 'category'], as_index=False)['screenPageViews'].sum()
                 
                 # B-3. 병합 (합계 + 상세경로)
@@ -658,8 +675,8 @@ def load_all_dashboard_data(selected_week):
             )
         else: df_top10['신규방문자비율'] = f"{new_visitor_ratio}%"
         
-        # [테이블용] 유입경로 1순위 컬럼 추가
-        if not df_sources_raw.empty:
+        # [테이블용] 유입경로 1순위 컬럼 추가 (정규화된 경로 기준)
+        if not df_sources_raw.empty and best_source_map:
             df_top10['유입경로 1순위'] = df_top10['경로'].map(best_source_map).fillna("-")
         else:
             df_top10['유입경로 1순위'] = "-"

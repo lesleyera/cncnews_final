@@ -146,7 +146,7 @@ if st.session_state['print_mode']:
     st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
     
     # 1. 성과 요약 (첫 번째 섹션은 페이지 넘김 없이)
-    views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count, visitor_24h, visitor_48h)
+    views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
     
     # 2. 접근 경로
     views.render_traffic(df_traffic_curr, df_traffic_last)
@@ -217,7 +217,7 @@ else:
     # [일반 모드]
     tabs = st.tabs(["1.성과요약", "2.접근경로", "3.방문자특성", "4.Top10상세", "5.Top10추이", "6.카테고리", "7.기자별분석"])
     
-    with tabs[0]: views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count, visitor_24h, visitor_48h)
+    with tabs[0]: views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
     with tabs[1]: views.render_traffic(df_traffic_curr, df_traffic_last)
     with tabs[2]: 
         views.render_demo_region(df_region_curr, df_region_last)

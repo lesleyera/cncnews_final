@@ -63,11 +63,10 @@ def create_donut_chart_with_val(df, names, values, color_map=None, height=350, m
     return fig
 
 # ----------------- 1. 성과 요약 -----------------
-def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count=0, visitor_24h=0, visitor_48h=0):
+def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count=0):
     st.markdown('<div class="section-header-container first-section"><div class="section-header">1. 주간 전체 성과 요약</div></div>', unsafe_allow_html=True)
     pv_per_user = round(cur_pv/cur_uv, 1) if cur_uv > 0 else 0
     
-    # 원래 지표 (24시간/48시간 제외)
     kpis = [
         ("활성 기사 수", active_article_count, "건"),
         ("발행 기사 수", published_article_count, "건"),
@@ -80,29 +79,11 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     
     cols = st.columns(7)
     for i, (l, v, u) in enumerate(kpis):
-        # 딕셔너리나 리스트인 경우 0으로 처리 (오류 방지)
-        if isinstance(v, (dict, list)):
-            v = 0
-        # 숫자 타입 확인 및 포맷팅
         if isinstance(v, (int, np.integer, float)) and l not in ["방문자당 페이지뷰", "신규 방문자 비율", "검색 유입 비율"]:
             v_f = f"{v:,}"
         else:
             v_f = str(v)
         cols[i].markdown(f'<div class="kpi-container"><div class="kpi-label">{l}</div><div class="kpi-value">{v_f}<span class="kpi-unit">{u}</span></div></div>', unsafe_allow_html=True)
-    
-    # 각 지표 산식 각주 추가
-    st.markdown("""
-    <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 4px; font-size: 0.9rem; color: #546e7a;">
-        <strong>※ 각 지표 산식:</strong><br>
-        • 활성 기사 수: 해당 주차 기간 내 조회가 발생한 고유 기사 주소(pagePath) 수<br>
-        • 발행 기사 수: 해당 주차에 처음으로 조회수(PV)가 발생한 기사 수 (GA4 기준)<br>
-        • 지난 7일 간 조회수(PV): 해당 주차 기간 내 총 화면 조회수<br>
-        • 지난 7일 간 방문자수(UV): 해당 주차 기간 내 총 활성 사용자 수<br>
-        • 방문자당 페이지뷰: 총 조회수 ÷ 총 방문자수<br>
-        • 신규 방문자 비율: 신규 사용자 수 ÷ 총 방문자수 × 100<br>
-        • 검색 유입 비율: 검색 엔진을 통한 유입 세션 수 ÷ 총 세션 수 × 100
-    </div>
-    """, unsafe_allow_html=True)
         
     c1, c2 = st.columns(2)
     with c1:
@@ -637,38 +618,9 @@ def render_top10_trends(df_top10, df_top10_sources=None):
 def render_category(df_published_all):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
     if not df_published_all.empty:
-        df_real = df_published_all.copy()
-        
-        # 필수 컬럼 확인
-        if '카테고리' not in df_real.columns:
-            st.warning("카테고리 정보가 없습니다.")
-            return
-        
-        # 기사 수 카운트용 컬럼 결정
-        count_column = None
-        if '제목' in df_real.columns:
-            count_column = '제목'
-        elif '경로' in df_real.columns:
-            count_column = '경로'
-        else:
-            df_real['_count'] = 1
-            count_column = '_count'
-        
-        # count_column이 실제로 존재하는지 확인
-        if count_column not in df_real.columns:
-            st.warning("기사 수를 카운트할 수 없습니다.")
-            return
-        
+        df_real = df_published_all
         # 메인 카테고리
-        agg_dict = {'기사수': (count_column, 'count')}
-        if '전체조회수' in df_real.columns:
-            agg_dict['전체조회수'] = ('전체조회수', 'sum')
-        
-        try:
-            cat_main = df_real.groupby('카테고리').agg(agg_dict).reset_index()
-        except (KeyError, ValueError) as e:
-            st.warning(f"카테고리 분석 중 오류가 발생했습니다.")
-            return
+        cat_main = df_real.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_main = cat_main['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
@@ -686,15 +638,7 @@ def render_category(df_published_all):
 
         # 세부 카테고리
         st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        if '세부카테고리' not in df_real.columns:
-            st.warning("세부카테고리 정보가 없습니다.")
-            return
-        
-        try:
-            cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(agg_dict).reset_index()
-        except (KeyError, ValueError) as e:
-            st.warning(f"세부 카테고리 분석 중 오류가 발생했습니다.")
-            return
+        cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_sub = cat_sub['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)
@@ -708,9 +652,6 @@ def render_category(df_published_all):
         
         st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
         st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True, height="content")
-        
-        # [수정] 각주 추가
-        st.markdown("<div style='font-size: 0.85rem; color: #78909c; margin-top: 5px;'>* 평균조회수: 카테고리 전체 조회수 ÷ 카테고리 기사 수</div>", unsafe_allow_html=True)
         
         # 발행기사 수 반환 (카테고리별 기사 수 합계)
         return total_main
@@ -727,7 +668,7 @@ def render_writer_analysis(writers_df_real, writers_df_pen):
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.dataframe(disp_w, use_container_width=True, hide_index=True, height="content")
+        st.dataframe(disp_w, use_container_width=True, hide_index=True)
     else:
         st.info("본명 기준 기자 실적 없음")
     
@@ -740,6 +681,6 @@ def render_writer_analysis(writers_df_real, writers_df_pen):
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.dataframe(disp_w, use_container_width=True, hide_index=True, height="content")
+        st.dataframe(disp_w, use_container_width=True, hide_index=True)
     else:
         st.info("필명 기준 기자 실적 없음")

@@ -316,12 +316,13 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             df_src['발행일시'] = df_src['pagePath'].map(path_to_pubdate).fillna('-')
             df_src['작성자'] = df_src['pagePath'].map(path_to_author).fillna('-')
             
-            df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:10] + '...' if len(str(x)) > 10 else str(x))
+            # y축 레이블을 더 길게 표시 (30자까지) - 전체 제목이 더 잘 보이도록
+            df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:30] + '...' if len(str(x)) > 30 else str(x))
             
             # 순위 순서대로 정렬 (1위부터 10위까지) - 순위별로 내려가게 (1위가 위, 10위가 아래)
             df_top10_sorted = df_top10.sort_values('순위', ascending=True)
-            short_titles_ordered = [t[:10] + '...' if len(str(t)) > 10 else str(t) for t in df_top10_sorted['제목'].tolist()]
-            # reverse() 제거 - 순위별로 내려가게
+            short_titles_ordered = [t[:30] + '...' if len(str(t)) > 30 else str(t) for t in df_top10_sorted['제목'].tolist()]
+            full_titles_ordered = df_top10_sorted['제목'].tolist()
             
             # 정규화된 조회수 사용
             fig = px.bar(
@@ -336,11 +337,12 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True, '발행일시': True, '작성자': True}
             )
             
-            # hover 템플릿 수정 - 전체 제목 표시
+            # hover 템플릿 수정 - 전체 제목을 맨 위에 명확히 표시
             fig.update_traces(
-                hovertemplate='<b>%{customdata[2]}</b><br>순위: %{customdata[4]}위<br>작성자: %{customdata[7]}<br>발행일시: %{customdata[6]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', 
+                hovertemplate='<b>전체 제목: %{customdata[2]}</b><br>순위: %{customdata[4]}위<br>작성자: %{customdata[7]}<br>발행일시: %{customdata[6]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', 
                 texttemplate='%{text:,}', 
-                textposition='outside'
+                textposition='outside',
+                hoverlabel=dict(bgcolor="white", font_size=12, font_family="Pretendard")
             )
             
             fig.update_layout(
@@ -352,6 +354,44 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             
             # y축 순서 설정 - 순위별로 내려가게 (1위가 위, 10위가 아래)
             fig.update_yaxes(categoryorder='array', categoryarray=short_titles_ordered)
+            
+            # y축 레이블에 마우스를 올렸을 때 전체 제목 표시를 위한 커스텀 JavaScript
+            # 전체 제목 리스트를 JavaScript에 전달
+            full_titles_js = str(full_titles_ordered).replace("'", "\\'")
+            short_titles_js = str(short_titles_ordered).replace("'", "\\'")
+            
+            yaxis_hover_script = f"""
+            <script>
+            (function() {{
+                function addTitleAttributes() {{
+                    const yAxisLabels = document.querySelectorAll('.ytick text');
+                    const fullTitles = {full_titles_js};
+                    const shortTitles = {short_titles_js};
+                    
+                    yAxisLabels.forEach(function(label) {{
+                        const shortTitle = label.textContent.trim();
+                        const titleIndex = shortTitles.indexOf(shortTitle);
+                        if (titleIndex >= 0 && titleIndex < fullTitles.length) {{
+                            label.setAttribute('title', fullTitles[titleIndex]);
+                            label.style.cursor = 'help';
+                        }}
+                    }});
+                }}
+                
+                // 차트가 렌더링된 후 실행
+                setTimeout(addTitleAttributes, 1500);
+                
+                // Plotly 이벤트 리스너 추가
+                if (typeof window.Plotly !== 'undefined') {{
+                    const plotDiv = document.querySelector('[data-testid="stPlotlyChart"]');
+                    if (plotDiv) {{
+                        plotDiv.on('plotly_afterplot', addTitleAttributes);
+                    }}
+                }}
+            }})();
+            </script>
+            """
+            st.markdown(yaxis_hover_script, unsafe_allow_html=True)
             
             # y축 레이블에 전체 제목을 툴팁으로 표시하기 위해 customdata 사용
             # y축 레이블 자체는 짧은 제목이지만, hover 시 전체 제목이 표시됨

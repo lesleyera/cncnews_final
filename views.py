@@ -346,6 +346,11 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             df_src['발행일시'] = df_src['pagePath'].map(path_to_pubdate).fillna('-')
             df_src['작성자'] = df_src['pagePath'].map(path_to_author).fillna('-')
             
+            # 페이지 URL 매핑 (경로 -> 전체 URL) - 클릭 이벤트용
+            df_src['page_url'] = df_src['pagePath'].apply(
+                lambda x: f"https://cooknchefnews.com{x}" if x and not x.startswith('http') else x
+            )
+            
             # y축 레이블을 더 길게 표시 (30자까지) - 전체 제목이 더 잘 보이도록
             df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:30] + '...' if len(str(x)) > 30 else str(x))
             
@@ -392,10 +397,6 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             
             # y축 순서 설정 - 순위별로 내려가게 (1위가 위, 10위가 아래)
             fig.update_yaxes(categoryorder='array', categoryarray=short_titles_ordered)
-            
-            # 페이지 URL 매핑 (경로 -> 전체 URL)
-            path_to_url = dict(zip(df_src['pagePath'], df_src['page_url']))
-            path_to_url_js = str(path_to_url).replace("'", "\\'")
             
             # y축 레이블에 마우스를 올렸을 때 노란 배경의 커스텀 툴팁 표시
             full_titles_js = str(full_titles_ordered).replace("'", "\\'")

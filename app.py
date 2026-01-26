@@ -61,7 +61,19 @@ if not st.session_state['print_mode']:
     st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_week]}</div>', unsafe_allow_html=True)
     st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
 else:
-    # 인쇄 모드에서는 헤더 영역에 버튼만 표시
+    # 인쇄 모드에서는 헤더 영역에 버튼만 표시 (인쇄 시 숨김)
+    st.markdown("""
+    <style>
+    /* 인쇄 모드에서 버튼 영역을 최소화 */
+    .print-mode-button-area {
+        margin-bottom: 0 !important;
+        padding-bottom: 0 !important;
+        height: auto !important;
+    }
+    </style>
+    <div class="print-mode-button-area no-print">
+    """, unsafe_allow_html=True)
+    
     col_btn1, col_btn2 = st.columns([1, 1])
     with col_btn1:
         if st.button("🔙 대시보드로 복귀", type="secondary"):
@@ -78,6 +90,8 @@ else:
             """
             st.components.v1.html(print_script, height=0, width=0)
     
+    st.markdown("</div>", unsafe_allow_html=True)
+    
     selected_week = st.session_state.get('selected_week_for_print', st.session_state.get('week_select', list(WEEK_MAP.keys())[0]))
 
 # 데이터 로드
@@ -89,24 +103,42 @@ else:
 # 기자별 데이터 생성 (본명 기준, 필명 기준) - 이번주 발행기사 전체 사용
 writers_df_real, writers_df_pen = data.get_writers_df_real(df_published_all_week if not df_published_all_week.empty else df_top10)
 
-# 발행기사 수는 6. 카테고리의 발행기사수 합으로 정의 (나중에 render_category에서 계산)
-# 초기값은 data.py에서 계산한 값 사용
-
-# 발행기사 수를 카테고리별 기사 수 합으로 계산 (6. 카테고리 섹션에서 계산)
-# 인쇄 모드와 일반 모드 모두에서 미리 계산
-if not df_top10.empty:
-    # 카테고리별 기사 수 합계 계산
-    category_count = df_top10.groupby('카테고리').agg(기사수=('제목','count')).reset_index()
-    published_article_count = category_count['기사수'].sum()
+# 발행기사 수는 이번주 발행기사 전체(df_published_all_week)의 개수로 계산
+# data.py에서 이미 계산한 published_article_count를 사용하되, 
+# df_published_all_week이 있으면 그 길이를 사용 (더 정확함)
+if not df_published_all_week.empty:
+    # 이번주 발행기사 전체의 개수 (실제 발행된 기사 수)
+    published_article_count = len(df_published_all_week)
+# data.py에서 계산한 published_article_count는 기본값으로 유지 (df_published_all_week이 없을 때)
 
 # 뷰 렌더링
 if st.session_state['print_mode']:
     # [인쇄 모드] - 모든 섹션을 순차적으로 표시
-    # 인쇄 모드에서는 헤더를 숨기고 콘텐츠만 표시
+    # 인쇄 모드에서는 헤더와 버튼을 숨기고 콘텐츠만 표시
     st.markdown("""
     <style>
-    .print-mode-hide {
+    /* 인쇄 모드에서 버튼 영역과 불필요한 공간 제거 */
+    .print-preview-layout {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* 인쇄 모드에서 버튼 숨김 */
+    .stButton {
         display: none !important;
+    }
+    
+    /* 첫 번째 섹션이 상단에서 시작 */
+    .print-preview-layout > *:first-child {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* block-container의 padding 제거 */
+    .print-preview-layout ~ .block-container,
+    .print-preview-layout .block-container {
+        padding-top: 0 !important;
+        margin-top: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)

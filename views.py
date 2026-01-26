@@ -311,6 +311,9 @@ def render_top10_detail(df_top10, df_published_top10=None):
                 df_pub[c] = df_pub[c].apply(safe_format_int)
         df_pub_display = df_pub.copy()
         # 중복 컬럼 제거 후 rename
+        # 먼저 중복 컬럼 제거 (같은 이름의 컬럼이 여러 개 있으면 첫 번째만 유지)
+        df_pub_display = df_pub_display.loc[:, ~df_pub_display.columns.duplicated()]
+        
         rename_dict = {}
         if '전체조회수' in df_pub_display.columns and '최근 7일간 조회수' not in df_pub_display.columns:
             rename_dict['전체조회수'] = '최근 7일간 조회수'
@@ -327,6 +330,9 @@ def render_top10_detail(df_top10, df_published_top10=None):
         
         if rename_dict:
             df_pub_display = df_pub_display.rename(columns=rename_dict)
+        
+        # rename 후에도 중복 컬럼이 있을 수 있으므로 다시 확인
+        df_pub_display = df_pub_display.loc[:, ~df_pub_display.columns.duplicated()]
         # 24시간, 48시간 방문자 수 포맷팅
         if '24시간 방문자수' in df_pub_display.columns:
             df_pub_display['24시간 방문자수'] = df_pub_display['24시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")

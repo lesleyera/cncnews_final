@@ -284,11 +284,28 @@ def render_top10_trends(df_top10, df_top10_sources=None):
         if df_top10_sources is not None and not df_top10_sources.empty:
             # df_top10의 순위 순서대로 정렬
             path_to_rank = dict(zip(df_top10['경로'], df_top10['순위']))
+            path_to_total_pv = dict(zip(df_top10['경로'], df_top10['전체조회수']))
+            
             df_src = df_top10_sources.copy()
             df_src['순위'] = df_src['pagePath'].map(path_to_rank).fillna(999)
             
             # 순위별로 정렬하고 top10만 필터링
             df_src = df_src[df_src['순위'] <= 10].sort_values('순위')
+            
+            # 각 기사별 유입경로 조회수 합계 계산
+            df_src_sum_by_article = df_src.groupby('pagePath')['screenPageViews'].sum().reset_index()
+            df_src_sum_by_article.columns = ['pagePath', 'source_total_pv']
+            
+            # df_top10의 전체조회수와 비교하여 비율 계산 및 정규화
+            df_src = pd.merge(df_src, df_src_sum_by_article, on='pagePath', how='left')
+            df_src['total_pv_from_top10'] = df_src['pagePath'].map(path_to_total_pv).fillna(0)
+            
+            # 유입경로별 조회수를 전체조회수에 맞게 정규화 (비율 유지)
+            df_src['screenPageViews_normalized'] = df_src.apply(
+                lambda row: int(row['screenPageViews'] * row['total_pv_from_top10'] / row['source_total_pv']) 
+                if row['source_total_pv'] > 0 else 0, 
+                axis=1
+            )
             
             path_to_title = dict(zip(df_top10['경로'], df_top10['제목']))
             df_src['기사제목'] = df_src['pagePath'].map(path_to_title).fillna('기타')
@@ -300,19 +317,20 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             short_titles_ordered = [t[:10] + '...' if len(str(t)) > 10 else str(t) for t in df_top10_sorted['제목'].tolist()]
             short_titles_ordered.reverse()
             
+            # 정규화된 조회수 사용
             fig = px.bar(
                 df_src, 
-                x='screenPageViews',   
+                x='screenPageViews_normalized',   
                 y='기사제목_short',     
                 color='유입경로',
-                text='screenPageViews',
+                text='screenPageViews_normalized',
                 title='기사별 유입경로 비중',
                 orientation='h',       
                 color_discrete_sequence=CHART_PALETTE,
-                hover_data={'top_detail': True, 'screenPageViews': True, '기사제목': True, '기사제목_short': False, '순위': True}
+                hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True}
             )
             
-            fig.update_traces(hovertemplate='<b>%{y}</b><br>순위: %{customdata[4]}위<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x}<extra></extra>', texttemplate='%{text:,}', textposition='outside')
+            fig.update_traces(hovertemplate='<b>%{y}</b><br>순위: %{customdata[4]}위<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', texttemplate='%{text:,}', textposition='outside')
             
             fig.update_layout(
                 plot_bgcolor='white',

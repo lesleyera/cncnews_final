@@ -233,10 +233,19 @@ def render_top10_detail(df_top10, df_published_top10=None):
             '전체조회수': '최근 7일간 조회수',
             '전체방문자수': '최근 7일간 방문자수',
             '체류시간_fmt': '체류시간',
-            '최다유입': '최다 유입경로'
+            '최다유입': '최다 유입경로',
+            '24시간방문자수': '24시간 방문자수',
+            '48시간방문자수': '48시간 방문자수'
         })
-        cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','좋아요','댓글']
-        st.dataframe(df_p4_display[cols], use_container_width=True, hide_index=True)
+        # 24시간, 48시간 방문자 수 포맷팅
+        if '24시간 방문자수' in df_p4_display.columns:
+            df_p4_display['24시간 방문자수'] = df_p4_display['24시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")
+        if '48시간 방문자수' in df_p4_display.columns:
+            df_p4_display['48시간 방문자수'] = df_p4_display['48시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")
+        cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
+        # 존재하는 컬럼만 선택
+        available_cols = [c for c in cols if c in df_p4_display.columns]
+        st.dataframe(df_p4_display[available_cols], use_container_width=True, hide_index=True)
     
     # 4-1. 최근 발행기사 기준
     if df_published_top10 is not None and not df_published_top10.empty:
@@ -253,9 +262,16 @@ def render_top10_detail(df_top10, df_published_top10=None):
             '전체조회수': '최근 7일간 조회수',
             '전체방문자수': '최근 7일간 방문자수',
             '체류시간_fmt': '체류시간',
-            '최다유입': '최다 유입경로'
+            '최다유입': '최다 유입경로',
+            '24시간방문자수': '24시간 방문자수',
+            '48시간방문자수': '48시간 방문자수'
         })
-        cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','좋아요','댓글']
+        # 24시간, 48시간 방문자 수 포맷팅
+        if '24시간 방문자수' in df_pub_display.columns:
+            df_pub_display['24시간 방문자수'] = df_pub_display['24시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")
+        if '48시간 방문자수' in df_pub_display.columns:
+            df_pub_display['48시간 방문자수'] = df_pub_display['48시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")
+        cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
         # 존재하는 컬럼만 선택
         available_cols = [c for c in cols if c in df_pub_display.columns]
         st.dataframe(df_pub_display[available_cols], use_container_width=True, hide_index=True)

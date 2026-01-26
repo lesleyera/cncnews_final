@@ -41,11 +41,6 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 .stTabs [data-baseweb="tab"] {{ height: 60px; background-color: #f7f9fa; border-right: 1px solid #eceff1; color: #607d8b; font-weight: 700; font-size: 1.3rem; flex-grow: 1; text-align: center; }}
 .stTabs [aria-selected="true"] {{ background-color: #fff; color: {COLOR_RED}; border-bottom: 4px solid {COLOR_RED}; }}
 [data-testid="stDataFrame"] thead th {{ background-color: {COLOR_NAVY} !important; color: white !important; font-size: 1.2rem !important; font-weight: 600 !important; }}
-[data-testid="stDataFrame"] {{ overflow: visible !important; }}
-[data-testid="stDataFrame"] > div {{ overflow: visible !important; max-height: none !important; }}
-[data-testid="stDataFrame"] .stDataFrameContainer {{ overflow: visible !important; max-height: none !important; }}
-div[data-testid="stDataFrame"] > div {{ overflow: visible !important; max-height: none !important; height: auto !important; }}
-div[data-testid="stDataFrame"] table {{ display: table !important; }}
 .footer-note {{ font-size: 1rem; color: #78909c; margin-top: 50px; border-top: 1px solid #eceff1; padding-top: 15px; text-align: center; }}
 
 /* 인쇄 미리보기 모드에서 모든 콘텐츠 표시 */

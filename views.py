@@ -654,12 +654,17 @@ def render_category(df_published_all):
         need_crawl = False
         if '제목' not in df_real.columns:
             need_crawl = True
-        elif df_real['제목'].isna().all():
-            need_crawl = True
         else:
-            # 제목이 모두 빈 문자열인지 확인
-            non_empty = df_real['제목'].astype(str).str.strip()
-            if (non_empty == '').all():
+            # 제목 컬럼이 있으면 비어있는지 확인
+            try:
+                if df_real['제목'].isna().all():
+                    need_crawl = True
+                else:
+                    # 제목이 모두 빈 문자열인지 확인
+                    non_empty = df_real['제목'].astype(str).str.strip()
+                    if (non_empty == '').all():
+                        need_crawl = True
+            except:
                 need_crawl = True
         
         if need_crawl and '경로' in df_real.columns:

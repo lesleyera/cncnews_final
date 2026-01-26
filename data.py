@@ -639,8 +639,10 @@ def load_all_dashboard_data(selected_week):
                     pass
         
         if published_articles_list:
-            df_published = pd.DataFrame(published_articles_list)
-            # 조회수로 정렬하고 상위 10개 선택
+            df_published_all = pd.DataFrame(published_articles_list)  # 이번주 발행기사 전체
+            df_published = df_published_all.copy()
+            
+            # 조회수로 정렬하고 상위 10개 선택 (df_published_top10용)
             df_published = df_published.sort_values('screenPageViews', ascending=False).head(10)
             
             # df_top10과 동일한 형식으로 변환
@@ -686,10 +688,27 @@ def load_all_dashboard_data(selected_week):
             df_published['최다유입'] = "-"
             df_published['유입경로 1순위'] = "-"
             df_published_top10 = df_published
+            
+            # 이번주 발행기사 전체를 df_published_all로 변환 (기자별 분석용)
+            df_published_all = df_published_all.rename(columns={
+                'pageTitle': '제목', 
+                'pagePath': '경로', 
+                'screenPageViews': '전체조회수', 
+                'activeUsers': '전체방문자수', 
+                'userEngagementDuration': '평균체류시간', 
+                'bounceRate': '이탈률'
+            })
+            df_published_all['체류시간_fmt'] = df_published_all['평균체류시간'].apply(format_duration)
+            df_published_all['발행일시'] = df_published_all['실발행일시']
+        else:
+            df_published_all = pd.DataFrame()
 
+    # 이번주 발행기사 전체 (기자별 분석용)
+    df_published_all_week = df_published_all if 'df_published_all' in locals() else pd.DataFrame()
+    
     return (sel_uv, sel_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
             df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
-            df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, published_article_count, df_top10_sources, df_published_top10)
+            df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, published_article_count, df_top10_sources, df_published_top10, df_published_all_week)
 
 def get_writers_df_real(df_target):
     # 1. 엑셀 데이터로부터 매핑 딕셔너리 생성 (필명 -> 본명)

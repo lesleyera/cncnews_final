@@ -45,14 +45,17 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 </style>
 """
 
-# 인쇄용 CSS (가로보기, 여백 10mm, 섹션별 강제 분할 최적화)
+# 인쇄용 CSS (가로보기, 여백 상하 15mm/좌우 10mm, 섹션별 강제 분할 최적화)
 PRINT_CSS = """
 <style>
 @media print {
-    /* 1. 페이지 설정: A4 가로, 모든 여백 10mm */
-    @page { 
-        size: A4 landscape; 
-        margin: 10mm !important; 
+    /* 페이지 설정: A4 가로, 여백 상하 15mm/좌우 10mm */
+    @page {
+        size: A4 landscape;
+        margin-top: 15mm !important;
+        margin-bottom: 20mm !important;
+        margin-left: 10mm !important;
+        margin-right: 10mm !important;
     }
     
     body { 
@@ -65,11 +68,11 @@ PRINT_CSS = """
     /* 2. 안내 문구 및 불필요 UI 숨김 */
     .no-print, .stButton, header, footer, 
     [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
-    .stAlert, [data-testid="stNotification"], .print-footer, .footer-note { 
+    .stAlert, [data-testid="stNotification"], .footer-note { 
         display: none !important; 
     }
     
-    /* 3. 섹션 강제 분할 (1~6번 독립 페이지) */
+    /* 3. 섹션 강제 분할 - 각 섹션을 독립 페이지로 */
     .section-header-container { 
         display: block !important;
         break-before: page !important;
@@ -79,17 +82,15 @@ PRINT_CSS = """
     }
 
     /* 첫 번째 섹션은 넘김 제외 */
-    div:first-child > .section-header-container {
+    .print-preview-layout > div:first-child .section-header-container {
         break-before: auto !important;
         page-break-before: auto !important;
     }
 
-    /* 4. 7번과 8번 묶기: 8번 제목에서만 강제 분할 해제 */
-    /* 8. 이 포함된 헤더 컨테이너를 정확히 타겟팅 */
-    div[data-testid="stVerticalBlock"] > div:has(.section-header:contains("8.")) .section-header-container {
-        break-before: avoid !important;
-        page-break-before: avoid !important;
-        margin-top: 30px !important; /* 7번과의 간격 */
+    /* 4. page-break 마커 처리 */
+    .page-break {
+        break-after: page !important;
+        page-break-after: always !important;
     }
 
     /* 5. 콘텐츠 레이아웃 최적화 */
@@ -100,11 +101,68 @@ PRINT_CSS = """
         margin: 0 !important;
     }
 
+    /* 6. 테이블 및 차트 분할 방지 */
     [data-testid="stDataFrame"], .js-plotly-plot, .stPlotlyChart {
         width: 100% !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
     }
+    
+    /* 7. 테이블 행 분할 방지 및 번호 기준 분할 */
+    [data-testid="stDataFrame"] tbody tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* 8. 테이블이 페이지를 넘어갈 경우 처리 */
+    [data-testid="stDataFrame"] table {
+        page-break-inside: auto !important;
+    }
+    
+    [data-testid="stDataFrame"] thead {
+        display: table-header-group !important;
+    }
+    
+    [data-testid="stDataFrame"] tbody tr:first-child {
+        page-break-before: avoid !important;
+    }
+    
+    /* 9. 리스트 항목 분할 방지 */
+    ul, ol {
+        page-break-inside: avoid !important;
+    }
+    
+    li {
+        page-break-inside: avoid !important;
+    }
+    
+    /* 10. 페이지 번호 표시 영역 */
+    .page-number {
+        position: fixed;
+        bottom: 3mm;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 9pt;
+        color: #666;
+        z-index: 9999;
+    }
+    
+    /* 11. 각 섹션 컨테이너에 페이지 번호 공간 확보 */
+    [data-testid="stVerticalBlock"] {
+        position: relative;
+        min-height: calc(100vh - 30mm);
+        padding-bottom: 15mm !important;
+    }
+    
+    /* 12. 하단 푸터 숨김 */
+    .print-footer {
+        display: none !important;
+    }
+}
+
+/* 인쇄 미리보기용 스타일 */
+.print-preview-layout {
+    position: relative;
 }
 </style>
 """

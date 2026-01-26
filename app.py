@@ -54,11 +54,37 @@ with c2:
         if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
             st.session_state['print_mode'] = False
             st.rerun()
-        # PDF 저장 버튼 - 항상 표시
-        col_btn2.button("📄 PDF로 저장", type="primary", key="pdf_save_print")
+        # PDF 저장 버튼 - 커스텀 HTML 버튼 사용
+        st.markdown("""
+        <div style="margin-top: 10px;">
+            <button id="pdf-save-btn-print" style="
+                background-color: #FF4B4B;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 0.25rem;
+                font-weight: 600;
+                cursor: pointer;
+                width: 100%;
+            ">📄 PDF로 저장</button>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        # 일반 모드에서 바로 PDF 저장 버튼 표시 - 항상 표시
-        col_btn2.button("📄 PDF로 저장", type="primary", key="pdf_save_normal")
+        # 일반 모드에서 바로 PDF 저장 버튼 표시 - 커스텀 HTML 버튼 사용
+        st.markdown("""
+        <div style="margin-top: 10px;">
+            <button id="pdf-save-btn-normal" style="
+                background-color: #FF4B4B;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 0.25rem;
+                font-weight: 600;
+                cursor: pointer;
+                width: 100%;
+            ">📄 PDF로 저장</button>
+        </div>
+        """, unsafe_allow_html=True)
         
     if not st.session_state['print_mode']:
         selected_week = st.selectbox("📅 조회 주차", list(WEEK_MAP.keys()), key="week_select", label_visibility="collapsed")
@@ -78,9 +104,8 @@ st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('
 # 기자별 데이터 생성 (본명 기준)
 writers_df = data.get_writers_df_real(df_top10)
 
-# 발행기사 수를 카테고리별 기사 수와 연동 (df_top10의 기사 수 사용)
-if not df_top10.empty:
-    published_article_count = len(df_top10)
+# 발행기사 수는 data.py에서 계산한 값을 사용 (df_top10은 TOP 10만 포함하므로 사용하지 않음)
+# published_article_count는 이미 data.load_all_dashboard_data에서 계산됨
 
 # 뷰 렌더링
 if st.session_state['print_mode']:
@@ -175,9 +200,8 @@ else:
     with tabs[4]: views.render_top10_trends(df_top10, df_top10_sources)
     with tabs[5]: 
         category_count = views.render_category(df_top10)
-        # 카테고리별 기사 수로 발행기사 수 업데이트
-        if category_count > 0:
-            published_article_count = category_count
+        # 카테고리별 기사 수는 df_top10 기반이므로 참고용으로만 사용
+        # 실제 발행기사 수는 data.py에서 계산한 published_article_count 사용
     with tabs[6]: views.render_writer_analysis(writers_df)
 
 st.markdown('<div class="footer-note no-print">※ 본 보고서는 쿡앤셰프(Cook&Chef) 홈페이지 및 애널리틱스 데이터를 활용하여 구성하였습니다.</div>', unsafe_allow_html=True)
@@ -187,43 +211,27 @@ pdf_button_script = """
 <script>
 (function() {
     function attachPDFButtonListeners() {
-        // PDF 저장 버튼 찾기 - 여러 선택자 시도
-        const selectors = [
-            'button[kind="primaryForm"]',
-            'button[data-testid="baseButton-secondary"]',
-            'button.stButton button',
-            '.stButton > button'
-        ];
+        // 커스텀 HTML 버튼 찾기
+        const pdfBtnPrint = document.getElementById('pdf-save-btn-print');
+        const pdfBtnNormal = document.getElementById('pdf-save-btn-normal');
         
-        let pdfButtons = [];
-        selectors.forEach(function(selector) {
-            const buttons = document.querySelectorAll(selector);
-            buttons.forEach(function(btn) {
-                const btnText = btn.textContent.trim();
-                if (btnText.includes('PDF로 저장') || btnText.includes('📄')) {
-                    pdfButtons.push(btn);
-                }
+        if (pdfBtnPrint && !pdfBtnPrint.dataset.pdfListener) {
+            pdfBtnPrint.dataset.pdfListener = 'true';
+            pdfBtnPrint.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                setTimeout(generatePDF, 100);
             });
-        });
+        }
         
-        // 중복 제거
-        pdfButtons = Array.from(new Set(pdfButtons));
-        
-        pdfButtons.forEach(function(btn) {
-            // 이미 리스너가 추가되었는지 확인
-            if (btn.dataset.pdfListener === 'true') {
-                return;
-            }
-            btn.dataset.pdfListener = 'true';
-            
-            // 클릭 이벤트 리스너 추가
-            btn.addEventListener('click', function(e) {
-                // Streamlit의 기본 동작은 유지하되, 추가로 PDF 생성
-                setTimeout(function() {
-                    generatePDF();
-                }, 300);
-            }, true); // capture phase에서 실행
-        });
+        if (pdfBtnNormal && !pdfBtnNormal.dataset.pdfListener) {
+            pdfBtnNormal.dataset.pdfListener = 'true';
+            pdfBtnNormal.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                setTimeout(generatePDF, 100);
+            });
+        }
     }
     
     function generatePDF() {
@@ -370,12 +378,16 @@ pdf_button_script = """
     }
     
     // 페이지 로드 시 버튼 리스너 추가
+    function initPDFButtons() {
+        attachPDFButtonListeners();
+    }
+    
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(attachPDFButtonListeners, 500);
+            setTimeout(initPDFButtons, 500);
         });
     } else {
-        setTimeout(attachPDFButtonListeners, 500);
+        setTimeout(initPDFButtons, 500);
     }
     
     // Streamlit이 동적으로 버튼을 추가할 수 있으므로 주기적으로 확인

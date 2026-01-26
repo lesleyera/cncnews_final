@@ -650,10 +650,18 @@ def render_category(df_published_all):
     if not df_published_all.empty:
         df_real = df_published_all.copy()
         
-        # 기사 수 카운트용 컬럼 결정 (경로 우선, 없으면 제목)
-        count_column = '경로' if '경로' in df_real.columns else ('제목' if '제목' in df_real.columns else None)
+        # 기사 수 카운트용 컬럼 결정 및 생성
+        if '경로' in df_real.columns:
+            count_column = '경로'
+        elif '제목' in df_real.columns:
+            count_column = '제목'
+        else:
+            # 둘 다 없으면 임시 컬럼 생성
+            df_real['_count'] = 1
+            count_column = '_count'
         
-        if count_column is None:
+        # count_column이 실제로 존재하는지 확인
+        if count_column not in df_real.columns:
             st.warning("카테고리 분석에 필요한 데이터가 없습니다.")
             return
         

@@ -546,30 +546,29 @@ def render_category(df_top10):
     return 0
 
 # ----------------- 7. 기자별 분석 -----------------
-def render_writer_analysis(writers_df):
+def render_writer_analysis(writers_df_real, writers_df_pen):
     st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)
     
-    # 7-1. 이번주 기자별 분석 (본명 기준)
+    # 7-1. 이번주 기자별 분석 (본명 기준) - 본명으로 합산하여 순위 매김
     st.markdown('<div class="sub-header">7-1. 이번주 기자별 분석 (본명 기준)</div>', unsafe_allow_html=True)
-    if not writers_df.empty:
-        disp_w = writers_df.copy()
+    if not writers_df_real.empty:
+        disp_w = writers_df_real.copy()
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
-        disp_w = disp_w[['순위', '작성자', '필명', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
-        disp_w.columns = ['순위', '본명', '필명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
+        disp_w = disp_w[['순위', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
+        disp_w.columns = ['순위', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
         st.dataframe(disp_w, use_container_width=True, hide_index=True)
+    else:
+        st.info("본명 기준 기자 실적 없음")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 7-2. 이번주 기자별 분석 (필명 기준)
+    # 7-2. 이번주 기자별 분석 (필명 기준) - 필명으로 합산하여 순위 매김
     st.markdown('<div class="sub-header">7-2. 이번주 기자별 분석 (필명 기준)</div>', unsafe_allow_html=True)
-    if not writers_df.empty:
-        df_pen = writers_df[writers_df['필명'] != ''].copy()
-        if not df_pen.empty:
-            df_pen['순위'] = df_pen['총조회수'].rank(method='min', ascending=False).astype(int)
-            df_pen = df_pen.sort_values('순위')
-            disp_w = df_pen.copy()
-            for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
-            disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
-            disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-            st.dataframe(disp_w, use_container_width=True, hide_index=True)
-        else: st.info("필명 기자 실적 없음")
+    if not writers_df_pen.empty:
+        disp_w = writers_df_pen.copy()
+        for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
+        disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
+        disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
+        st.dataframe(disp_w, use_container_width=True, hide_index=True)
+    else:
+        st.info("필명 기준 기자 실적 없음")

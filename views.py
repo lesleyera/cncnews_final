@@ -307,8 +307,14 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 axis=1
             )
             
+            # df_top10의 정보를 df_src에 매핑 (제목, 발행일시 등)
             path_to_title = dict(zip(df_top10['경로'], df_top10['제목']))
+            path_to_pubdate = dict(zip(df_top10['경로'], df_top10['발행일시']))
+            path_to_author = dict(zip(df_top10['경로'], df_top10['작성자']))
+            
             df_src['기사제목'] = df_src['pagePath'].map(path_to_title).fillna('기타')
+            df_src['발행일시'] = df_src['pagePath'].map(path_to_pubdate).fillna('-')
+            df_src['작성자'] = df_src['pagePath'].map(path_to_author).fillna('-')
             
             df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:10] + '...' if len(str(x)) > 10 else str(x))
             
@@ -327,10 +333,10 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 title='기사별 유입경로 비중',
                 orientation='h',       
                 color_discrete_sequence=CHART_PALETTE,
-                hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True}
+                hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True, '발행일시': True, '작성자': True}
             )
             
-            fig.update_traces(hovertemplate='<b>%{y}</b><br>순위: %{customdata[4]}위<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', texttemplate='%{text:,}', textposition='outside')
+            fig.update_traces(hovertemplate='<b>%{y}</b><br>제목: %{customdata[2]}<br>작성자: %{customdata[7]}<br>발행일시: %{customdata[6]}<br>순위: %{customdata[4]}위<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', texttemplate='%{text:,}', textposition='outside')
             
             fig.update_layout(
                 plot_bgcolor='white',

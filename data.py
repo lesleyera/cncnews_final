@@ -533,10 +533,93 @@ def load_all_dashboard_data(selected_week):
         df_top10 = pd.DataFrame()
         df_raw_all = pd.DataFrame()
         df_top10_sources = pd.DataFrame()
+    
+    # 6-4. 발행기사 기준 TOP 10 생성 (해당 주차에 발행된 기사 중 조회수 상위 10개)
+    df_published_top10 = pd.DataFrame()
+    if not df_raw_all.empty:
+        # 기간 날짜 객체 생성
+        start_date_obj = datetime.strptime(s_dt, '%Y-%m-%d').date()
+        end_date_obj = datetime.strptime(e_dt, '%Y-%m-%d').date()
+        
+        # 모든 기사의 발행일시를 크롤링으로 가져오기
+        all_paths = df_raw_all['pagePath'].unique().tolist()
+        published_info = {}
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(crawl_single_article_cached, path): path for path in all_paths}
+            for future in concurrent.futures.as_completed(futures):
+                path = futures[future]
+                try:
+                    result = future.result(timeout=3.0)
+                    published_info[path] = result
+                except:
+                    published_info[path] = ("관리자", 0, 0, "뉴스", "이슈", "-")
+        
+        # 발행일시가 해당 주차 기간 내에 있는 기사만 필터링
+        published_articles_list = []
+        for path, info in published_info.items():
+            reg_date_str = info[5] if len(info) > 5 else "-"
+            if reg_date_str != "-":
+                try:
+                    date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', reg_date_str)
+                    if date_match:
+                        pub_date = datetime.strptime(date_match.group(0), '%Y-%m-%d').date()
+                        if start_date_obj <= pub_date <= end_date_obj:
+                            # 해당 기사의 GA4 데이터 찾기
+                            article_data = df_raw_all[df_raw_all['pagePath'] == path].copy()
+                            if not article_data.empty:
+                                # 첫 번째 행 사용 (중복 시)
+                                row = article_data.iloc[0].copy()
+                                row['작성자'] = info[0]
+                                row['좋아요'] = info[1]
+                                row['댓글'] = info[2]
+                                row['카테고리'] = info[3]
+                                row['세부카테고리'] = info[4]
+                                row['실발행일시'] = reg_date_str
+                                published_articles_list.append(row)
+                except:
+                    pass
+        
+        if published_articles_list:
+            df_published = pd.DataFrame(published_articles_list)
+            # 조회수로 정렬하고 상위 10개 선택
+            df_published = df_published.sort_values('screenPageViews', ascending=False).head(10)
+            
+            # df_top10과 동일한 형식으로 변환
+            df_published['순위'] = range(1, len(df_published)+1)
+            df_published = df_published.rename(columns={
+                'pageTitle': '제목', 
+                'pagePath': '경로', 
+                'screenPageViews': '전체조회수', 
+                'activeUsers': '전체방문자수', 
+                'userEngagementDuration': '평균체류시간', 
+                'bounceRate': '이탈률'
+            })
+            
+            def format_duration(sec):
+                try:
+                    sec_int = int(float(sec))
+                    m, s = divmod(sec_int, 60)
+                    return f"{m}분 {s}초"
+                except: return "0분 0초"
+            df_published['체류시간_fmt'] = df_published['평균체류시간'].apply(format_duration)
+            df_published['발행일시'] = df_published['실발행일시']
+            
+            if 'newUsers' in df_published.columns and '전체방문자수' in df_published.columns:
+                df_published['신규방문자비율'] = df_published.apply(
+                    lambda row: f"{round((float(row['newUsers']) / float(row['전체방문자수']) * 100), 1) if float(row['전체방문자수']) > 0 else 0}%",
+                    axis=1
+                )
+            else: 
+                df_published['신규방문자비율'] = f"{new_visitor_ratio}%"
+            
+            df_published['최다유입'] = "-"
+            df_published['유입경로 1순위'] = "-"
+            df_published_top10 = df_published
 
     return (sel_uv, sel_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
             df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
-            df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, published_article_count, df_top10_sources)
+            df_top10, df_raw_all, new_visitor_ratio, search_inflow_ratio, active_article_count, published_article_count, df_top10_sources, df_published_top10)
 
 def get_writers_df_real(df_target):
     # 1. 엑셀 데이터로부터 매핑 딕셔너리 생성 (필명 -> 본명)

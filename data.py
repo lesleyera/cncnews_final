@@ -139,7 +139,7 @@ def crawl_single_article_cached(url_path):
     }
     
     try:
-        response = requests.get(full_url, headers=headers, timeout=1.5)
+        response = requests.get(full_url, headers=headers, timeout=2.0)
         # [한글 깨짐 방지]
         response.encoding = response.apparent_encoding 
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -615,12 +615,12 @@ def load_all_dashboard_data(selected_week):
         # 6-2. 크롤링 수행 (정규화된 경로 사용)
         scraped_data_dict = {}
         if paths_normalized:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(crawl_single_article_cached, path): idx for idx, path in enumerate(paths_normalized)}
                 for future in concurrent.futures.as_completed(futures):
                     idx = futures[future]
                     try:
-                        result = future.result(timeout=2.0)
+                        result = future.result(timeout=3.0)
                         scraped_data_dict[idx] = result
                     except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-", "")
         
@@ -801,7 +801,7 @@ def load_all_dashboard_data(selected_week):
         # 병렬 크롤링 수행
         if paths_to_crawl:
             crawl_results_dict = {}
-            with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(crawl_single_article_cached, path): path for path in paths_to_crawl}
                 for future in concurrent.futures.as_completed(futures):
                     normalized_path = futures[future]

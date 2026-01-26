@@ -328,14 +328,23 @@ def render_top10_detail(df_top10, df_published_top10=None):
             if c in df_pub.columns:
                 df_pub[c] = df_pub[c].apply(safe_format_int)
         df_pub_display = df_pub.copy()
-        df_pub_display = df_pub_display.rename(columns={
-            '전체조회수': '최근 7일간 조회수',
-            '전체방문자수': '최근 7일간 방문자수',
-            '체류시간_fmt': '체류시간',
-            '최다유입': '최다 유입경로',
-            '24시간방문자수': '24시간 방문자수',
-            '48시간방문자수': '48시간 방문자수'
-        })
+        # 중복 컬럼 제거 후 rename
+        rename_dict = {}
+        if '전체조회수' in df_pub_display.columns and '최근 7일간 조회수' not in df_pub_display.columns:
+            rename_dict['전체조회수'] = '최근 7일간 조회수'
+        if '전체방문자수' in df_pub_display.columns and '최근 7일간 방문자수' not in df_pub_display.columns:
+            rename_dict['전체방문자수'] = '최근 7일간 방문자수'
+        if '체류시간_fmt' in df_pub_display.columns and '체류시간' not in df_pub_display.columns:
+            rename_dict['체류시간_fmt'] = '체류시간'
+        if '최다유입' in df_pub_display.columns and '최다 유입경로' not in df_pub_display.columns:
+            rename_dict['최다유입'] = '최다 유입경로'
+        if '24시간방문자수' in df_pub_display.columns and '24시간 방문자수' not in df_pub_display.columns:
+            rename_dict['24시간방문자수'] = '24시간 방문자수'
+        if '48시간방문자수' in df_pub_display.columns and '48시간 방문자수' not in df_pub_display.columns:
+            rename_dict['48시간방문자수'] = '48시간 방문자수'
+        
+        if rename_dict:
+            df_pub_display = df_pub_display.rename(columns=rename_dict)
         # 24시간, 48시간 방문자 수 포맷팅
         if '24시간 방문자수' in df_pub_display.columns:
             df_pub_display['24시간 방문자수'] = df_pub_display['24시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")

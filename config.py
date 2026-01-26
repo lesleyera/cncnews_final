@@ -91,7 +91,8 @@ PRINT_CSS = """
     /* 2. 안내 문구 및 불필요 UI 숨김 */
     .no-print, .stButton, header, footer, 
     [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stToolbar"],
-    .stAlert, [data-testid="stNotification"], .footer-note { 
+    .stAlert, [data-testid="stNotification"], .footer-note,
+    .report-title, .period-info, .update-time { 
         display: none !important; 
     }
     
@@ -101,13 +102,14 @@ PRINT_CSS = """
         break-before: page !important;
         page-break-before: always !important;
         margin-top: 0 !important;
-        padding-top: 0 !important;
+        padding-top: 10mm !important;
     }
 
     /* 첫 번째 섹션은 넘김 제외 */
-    .print-preview-layout > div:first-child .section-header-container {
+    .print-preview-layout .section-header-container:first-of-type {
         break-before: auto !important;
         page-break-before: auto !important;
+        padding-top: 0 !important;
     }
 
     /* 4. page-break 마커 처리 */
@@ -171,10 +173,28 @@ PRINT_CSS = """
     }
     
     /* 11. 각 섹션 컨테이너에 페이지 번호 공간 확보 */
-    [data-testid="stVerticalBlock"] {
+    .print-preview-layout [data-testid="stVerticalBlock"] {
         position: relative;
-        min-height: calc(100vh - 30mm);
-        padding-bottom: 15mm !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* 인쇄 모드에서 모든 콘텐츠 표시 */
+    .print-preview-layout {
+        display: block !important;
+        visibility: visible !important;
+    }
+    
+    .print-preview-layout * {
+        visibility: visible !important;
+        display: block !important;
+    }
+    
+    .print-preview-layout [data-testid="stDataFrame"],
+    .print-preview-layout .js-plotly-plot,
+    .print-preview-layout .stPlotlyChart {
+        display: block !important;
+        visibility: visible !important;
     }
     
     /* 12. 하단 푸터 숨김 */
@@ -183,11 +203,12 @@ PRINT_CSS = """
     }
 }
 
-/* 인쇄 미리보기용 스타일 */
+/* 인쇄 미리보기용 스타일 (화면 표시용) */
 .print-preview-layout {
     position: relative;
     width: 100%;
     min-height: 100vh;
+    display: block !important;
 }
 
 /* 인쇄 미리보기 모드에서 모든 콘텐츠 표시 */
@@ -204,6 +225,13 @@ PRINT_CSS = """
     visibility: visible !important;
     height: auto !important;
     overflow: visible !important;
+}
+
+/* 인쇄 미리보기에서 헤더 숨김 */
+.print-preview-layout ~ .report-title,
+.print-preview-layout ~ .period-info,
+.print-preview-layout ~ .update-time {
+    display: none !important;
 }
 </style>
 """

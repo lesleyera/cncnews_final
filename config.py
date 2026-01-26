@@ -42,22 +42,39 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 .stTabs [aria-selected="true"] {{ background-color: #fff; color: {COLOR_RED}; border-bottom: 4px solid {COLOR_RED}; }}
 [data-testid="stDataFrame"] thead th {{ background-color: {COLOR_NAVY} !important; color: white !important; font-size: 1.2rem !important; font-weight: 600 !important; }}
 /* 표 스크롤 제거 - 데이터가 있는 모든 행 표시 */
-[data-testid="stDataFrame"] {{
+div[data-testid="stDataFrame"] {{
     max-height: none !important;
+    height: auto !important;
     overflow: visible !important;
 }}
-[data-testid="stDataFrame"] > div {{
+div[data-testid="stDataFrame"] > div {{
     max-height: none !important;
-    overflow: visible !important;
     height: auto !important;
+    overflow: visible !important;
 }}
-[data-testid="stDataFrame"] > div > div {{
+div[data-testid="stDataFrame"] > div > div {{
     max-height: none !important;
-    overflow: visible !important;
     height: auto !important;
+    overflow: visible !important;
+}}
+div[data-testid="stDataFrame"] > div > div > div {{
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
 }}
 [data-testid="stDataFrame"] table {{
     display: table !important;
+    width: 100% !important;
+}}
+[data-testid="stDataFrame"] tbody tr {{
+    border-bottom: 1px solid #e0e0e0 !important;
+}}
+[data-testid="stDataFrame"] tbody tr:hover {{
+    background-color: #f5f5f5 !important;
+}}
+[data-testid="stDataFrame"] td {{
+    padding: 12px 8px !important;
+    font-size: 1rem !important;
 }}
 .footer-note {{ font-size: 1rem; color: #78909c; margin-top: 50px; border-top: 1px solid #eceff1; padding-top: 15px; text-align: center; }}
 

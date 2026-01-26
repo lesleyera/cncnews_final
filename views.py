@@ -309,32 +309,16 @@ def render_top10_detail(df_top10, df_published_top10=None):
             try: return f"{int(float(x)):,}"
             except: return str(x)
         for c in ['전체조회수','전체방문자수','좋아요','댓글']: 
-            if c in df_pub.columns:
-                df_pub[c] = df_pub[c].apply(safe_format_int)
+            df_pub[c] = df_pub[c].apply(safe_format_int)
         df_pub_display = df_pub.copy()
-        # 중복 컬럼 제거 후 rename
-        # 먼저 중복 컬럼 제거 (같은 이름의 컬럼이 여러 개 있으면 첫 번째만 유지)
-        df_pub_display = df_pub_display.loc[:, ~df_pub_display.columns.duplicated()]
-        
-        rename_dict = {}
-        if '전체조회수' in df_pub_display.columns and '최근 7일간 조회수' not in df_pub_display.columns:
-            rename_dict['전체조회수'] = '최근 7일간 조회수'
-        if '전체방문자수' in df_pub_display.columns and '최근 7일간 방문자수' not in df_pub_display.columns:
-            rename_dict['전체방문자수'] = '최근 7일간 방문자수'
-        if '체류시간_fmt' in df_pub_display.columns and '체류시간' not in df_pub_display.columns:
-            rename_dict['체류시간_fmt'] = '체류시간'
-        if '최다유입' in df_pub_display.columns and '최다 유입경로' not in df_pub_display.columns:
-            rename_dict['최다유입'] = '최다 유입경로'
-        if '24시간방문자수' in df_pub_display.columns and '24시간 방문자수' not in df_pub_display.columns:
-            rename_dict['24시간방문자수'] = '24시간 방문자수'
-        if '48시간방문자수' in df_pub_display.columns and '48시간 방문자수' not in df_pub_display.columns:
-            rename_dict['48시간방문자수'] = '48시간 방문자수'
-        
-        if rename_dict:
-            df_pub_display = df_pub_display.rename(columns=rename_dict)
-        
-        # rename 후에도 중복 컬럼이 있을 수 있으므로 다시 확인
-        df_pub_display = df_pub_display.loc[:, ~df_pub_display.columns.duplicated()]
+        df_pub_display = df_pub_display.rename(columns={
+            '전체조회수': '최근 7일간 조회수',
+            '전체방문자수': '최근 7일간 방문자수',
+            '체류시간_fmt': '체류시간',
+            '최다유입': '최다 유입경로',
+            '24시간방문자수': '24시간 방문자수',
+            '48시간방문자수': '48시간 방문자수'
+        })
         # 24시간, 48시간 방문자 수 포맷팅
         if '24시간 방문자수' in df_pub_display.columns:
             df_pub_display['24시간 방문자수'] = df_pub_display['24시간 방문자수'].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")
@@ -343,7 +327,7 @@ def render_top10_detail(df_top10, df_published_top10=None):
         cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
         # 존재하는 컬럼만 선택
         available_cols = [c for c in cols if c in df_pub_display.columns]
-        st.dataframe(df_pub_display[available_cols], use_container_width=True, hide_index=True, height="content")
+        st.dataframe(df_pub_display[available_cols], use_container_width=True, hide_index=True)
 
 # ----------------- 5. Top 10 추이 -----------------
 def render_top10_trends(df_top10, df_top10_sources=None):
@@ -648,55 +632,9 @@ def render_top10_trends(df_top10, df_top10_sources=None):
 def render_category(df_published_all):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
     if not df_published_all.empty:
-        df_real = df_published_all.copy()
-        
-        # 필수 컬럼 확인
-        if '카테고리' not in df_real.columns:
-            st.warning("카테고리 정보가 없습니다.")
-            return
-        
-        # 기사 수 카운트용 컬럼 결정 및 생성
-        count_column = None
-        if '경로' in df_real.columns:
-            count_column = '경로'
-        elif '제목' in df_real.columns:
-            count_column = '제목'
-        else:
-            # 둘 다 없으면 임시 컬럼 생성
-            df_real['_count'] = 1
-            count_column = '_count'
-        
-        # count_column이 실제로 존재하는지 최종 확인
-        if count_column is None or count_column not in df_real.columns:
-            st.warning("카테고리 분석에 필요한 데이터가 없습니다.")
-            return
-        
-        # 메인 카테고리 - agg_dict 생성 시 컬럼 존재 여부 재확인
-        agg_dict = {}
-        if count_column in df_real.columns:
-            agg_dict['기사수'] = (count_column, 'count')
-        else:
-            st.warning("기사 수를 카운트할 수 없습니다.")
-            return
-        
-        if '전체조회수' in df_real.columns:
-            agg_dict['전체조회수'] = ('전체조회수', 'sum')
-        
-        # agg_dict가 비어있지 않은지 확인
-        if not agg_dict:
-            st.warning("집계할 데이터가 없습니다.")
-            return
-        
-        try:
-            cat_main = df_real.groupby('카테고리').agg(agg_dict).reset_index()
-        except (KeyError, ValueError) as e:
-            st.warning(f"카테고리 분석 중 오류가 발생했습니다.")
-            return
-        
-        # 전체조회수 컬럼이 없을 경우 기본값 설정
-        if '전체조회수' not in cat_main.columns:
-            cat_main['전체조회수'] = 0
-        
+        df_real = df_published_all
+        # 메인 카테고리
+        cat_main = df_real.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_main = cat_main['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
@@ -714,24 +652,10 @@ def render_category(df_published_all):
 
         # 세부 카테고리
         st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        
-        # 세부카테고리 컬럼 확인
-        if '세부카테고리' not in df_real.columns:
-            st.warning("세부카테고리 정보가 없습니다.")
-            return
-        
-        try:
-            cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(agg_dict).reset_index()
-        except (KeyError, ValueError) as e:
-            st.warning(f"세부 카테고리 분석 중 오류가 발생했습니다.")
-            return
+        cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_sub = cat_sub['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)
-        
-        # 전체조회수 컬럼이 없을 경우 기본값 설정
-        if '전체조회수' not in cat_sub.columns:
-            cat_sub['전체조회수'] = 0
         
         cat_sub['전체조회수'] = pd.to_numeric(cat_sub['전체조회수'], errors='coerce').fillna(0)
         cat_sub['기사수_num'] = cat_sub['기사수'].apply(lambda x: int(x.split('(')[0]))
@@ -741,7 +665,7 @@ def render_category(df_published_all):
         cat_sub['전체조회수'] = cat_sub['전체조회수'].map('{:,}'.format)
         
         st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
-        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
+        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True, height="content")
         
         # [수정] 각주 추가
         st.markdown("<div style='font-size: 0.85rem; color: #78909c; margin-top: 5px;'>* 평균조회수: 카테고리 전체 조회수 ÷ 카테고리 기사 수</div>", unsafe_allow_html=True)

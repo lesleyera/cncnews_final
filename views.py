@@ -126,30 +126,12 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
                 uv_hover = [f"주차: {row['주차']}<br>UV: {row['UV']:,}" for idx, row in df_weekly.iterrows()]
                 pv_hover = [f"주차: {row['주차']}<br>PV: {row['PV']:,}" for idx, row in df_weekly.iterrows()]
             
-            # 3달 간 평균 계산 (최근 주차 제외)
-            df_weekly_except_last = df_weekly.iloc[:-1] if len(df_weekly) > 1 else df_weekly
-            avg_uv = df_weekly_except_last['UV'].mean() if len(df_weekly_except_last) > 0 else df_weekly['UV'].mean()
-            avg_pv = df_weekly_except_last['PV'].mean() if len(df_weekly_except_last) > 0 else df_weekly['PV'].mean()
-            
-            # 평균 미만인 막대는 주황색으로 표시 (최근 주차는 제외)
-            uv_colors = []
-            pv_colors = []
-            for idx, row in df_weekly.iterrows():
-                # 마지막 주차는 원래 색상 유지
-                if idx == df_weekly.index[-1]:
-                    uv_colors.append(COLOR_GREY)
-                    pv_colors.append(COLOR_NAVY)
-                else:
-                    # 평균 미만이면 주황색
-                    uv_colors.append('orange' if row['UV'] < avg_uv else COLOR_GREY)
-                    pv_colors.append('orange' if row['PV'] < avg_pv else COLOR_NAVY)
-            
             fig2 = go.Figure()
             fig2.add_trace(go.Bar(
                 x=df_weekly['주차'], 
                 y=df_weekly['UV'], 
                 name='UV', 
-                marker_color=uv_colors,
+                marker_color=COLOR_GREY,
                 hovertemplate='%{hovertext}<extra></extra>',
                 hovertext=uv_hover
             ))
@@ -157,7 +139,7 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
                 x=df_weekly['주차'], 
                 y=df_weekly['PV'], 
                 name='PV', 
-                marker_color=pv_colors,
+                marker_color=COLOR_NAVY,
                 hovertemplate='%{hovertext}<extra></extra>',
                 hovertext=pv_hover
             ))

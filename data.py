@@ -615,12 +615,12 @@ def load_all_dashboard_data(selected_week):
         # 6-2. 크롤링 수행 (정규화된 경로 사용)
         scraped_data_dict = {}
         if paths_normalized:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
                 futures = {executor.submit(crawl_single_article_cached, path): idx for idx, path in enumerate(paths_normalized)}
                 for future in concurrent.futures.as_completed(futures):
                     idx = futures[future]
                     try:
-                        result = future.result(timeout=3.0)
+                        result = future.result(timeout=2.5)
                         scraped_data_dict[idx] = result
                     except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-", "")
         
@@ -801,12 +801,12 @@ def load_all_dashboard_data(selected_week):
         # 병렬 크롤링 수행
         if paths_to_crawl:
             crawl_results_dict = {}
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
                 futures = {executor.submit(crawl_single_article_cached, path): path for path in paths_to_crawl}
                 for future in concurrent.futures.as_completed(futures):
                     normalized_path = futures[future]
                     try:
-                        crawl_result = future.result(timeout=3.0)
+                        crawl_result = future.result(timeout=2.5)
                         crawl_results_dict[normalized_path] = crawl_result
                     except:
                         crawl_results_dict[normalized_path] = ("관리자", 0, 0, "뉴스", "이슈", "-", "")

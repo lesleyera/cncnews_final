@@ -650,7 +650,13 @@ def render_category(df_published_all):
     if not df_published_all.empty:
         df_real = df_published_all.copy()
         
+        # 필수 컬럼 확인
+        if '카테고리' not in df_real.columns:
+            st.warning("카테고리 정보가 없습니다.")
+            return
+        
         # 기사 수 카운트용 컬럼 결정 및 생성
+        count_column = None
         if '경로' in df_real.columns:
             count_column = '경로'
         elif '제목' in df_real.columns:
@@ -660,17 +666,32 @@ def render_category(df_published_all):
             df_real['_count'] = 1
             count_column = '_count'
         
-        # count_column이 실제로 존재하는지 확인
-        if count_column not in df_real.columns:
+        # count_column이 실제로 존재하는지 최종 확인
+        if count_column is None or count_column not in df_real.columns:
             st.warning("카테고리 분석에 필요한 데이터가 없습니다.")
             return
         
-        # 메인 카테고리
-        agg_dict = {'기사수': (count_column, 'count')}
+        # 메인 카테고리 - agg_dict 생성 시 컬럼 존재 여부 재확인
+        agg_dict = {}
+        if count_column in df_real.columns:
+            agg_dict['기사수'] = (count_column, 'count')
+        else:
+            st.warning("기사 수를 카운트할 수 없습니다.")
+            return
+        
         if '전체조회수' in df_real.columns:
             agg_dict['전체조회수'] = ('전체조회수', 'sum')
         
-        cat_main = df_real.groupby('카테고리').agg(agg_dict).reset_index()
+        # agg_dict가 비어있지 않은지 확인
+        if not agg_dict:
+            st.warning("집계할 데이터가 없습니다.")
+            return
+        
+        try:
+            cat_main = df_real.groupby('카테고리').agg(agg_dict).reset_index()
+        except (KeyError, ValueError) as e:
+            st.warning(f"카테고리 분석 중 오류가 발생했습니다.")
+            return
         
         # 전체조회수 컬럼이 없을 경우 기본값 설정
         if '전체조회수' not in cat_main.columns:
@@ -693,7 +714,17 @@ def render_category(df_published_all):
 
         # 세부 카테고리
         st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(agg_dict).reset_index()
+        
+        # 세부카테고리 컬럼 확인
+        if '세부카테고리' not in df_real.columns:
+            st.warning("세부카테고리 정보가 없습니다.")
+            return
+        
+        try:
+            cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(agg_dict).reset_index()
+        except (KeyError, ValueError) as e:
+            st.warning(f"세부 카테고리 분석 중 오류가 발생했습니다.")
+            return
         total_sub = cat_sub['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)

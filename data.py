@@ -139,7 +139,7 @@ def crawl_single_article_cached(url_path):
     }
     
     try:
-        response = requests.get(full_url, headers=headers, timeout=3.0)
+        response = requests.get(full_url, headers=headers, timeout=1.5)
         # [한글 깨짐 방지]
         response.encoding = response.apparent_encoding 
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -347,7 +347,7 @@ def load_all_dashboard_data(selected_week):
             except: return None
         return None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
         futures = [executor.submit(fetch_week_data, wl, dstr) for wl, dstr in list(WEEK_MAP.items())[:12]]
         results = [f.result() for f in concurrent.futures.as_completed(futures) if f.result()]
     
@@ -462,7 +462,7 @@ def load_all_dashboard_data(selected_week):
 
     region_map = {'Seoul':'서울','Gyeonggi-do':'경기','Incheon':'인천','Busan':'부산','Daegu':'대구','Gyeongsangnam-do':'경남','Gyeongsangbuk-do':'경북','Chungcheongnam-do':'충남','Chungcheongbuk-do':'충북','Jeollanam-do':'전남','Jeollabuk-do':'전북','Gangwon-do':'강원','Daejeon':'대전','Gwangju':'광주','Ulsan':'울산','Jeju-do':'제주','Sejong-si':'세종'}
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
         f_reg_c = executor.submit(run_ga4_report, s_dt, e_dt, ["region"], ["activeUsers"], "activeUsers", 50)
         f_reg_l = executor.submit(run_ga4_report, ls_dt, le_dt, ["region"], ["activeUsers"], "activeUsers", 50)
         f_age_c = executor.submit(run_ga4_report, s_dt, e_dt, ["userAgeBracket"], ["activeUsers"], "activeUsers")
@@ -615,12 +615,12 @@ def load_all_dashboard_data(selected_week):
         # 6-2. 크롤링 수행 (정규화된 경로 사용)
         scraped_data_dict = {}
         if paths_normalized:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
                 futures = {executor.submit(crawl_single_article_cached, path): idx for idx, path in enumerate(paths_normalized)}
                 for future in concurrent.futures.as_completed(futures):
                     idx = futures[future]
                     try:
-                        result = future.result(timeout=3.0)
+                        result = future.result(timeout=2.0)
                         scraped_data_dict[idx] = result
                     except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-", "")
         
@@ -790,43 +790,58 @@ def load_all_dashboard_data(selected_week):
         
         # 해당 주차에 처음 조회가 발생한 기사 필터링 (크롤링 기준 마스터 데이터)
         # 모든 기사를 크롤링해서 발행일시 확인 후, 해당 주차 기간 내 발행된 기사만 필터링
+        # 병렬 처리로 성능 개선
+        paths_to_crawl = []
         for normalized_path, first_date in first_view_dates.items():
             first_date_obj = first_date.date() if hasattr(first_date, 'date') else pd.to_datetime(first_date).date()
             # 이전 주차에 조회가 없었고, 해당 주차 기간 내에 첫 조회가 발생한 경우
             if normalized_path not in prev_week_paths and start_date_obj <= first_date_obj <= end_date_obj:
-                # 크롤링으로 제목/카테고리 매핑 (정규화된 경로 사용)
-                crawl_path = normalized_path
-                try:
-                    crawl_result = crawl_single_article_cached(crawl_path)
-                    reg_date_str = crawl_result[5] if len(crawl_result) > 5 else "-"
-                    
-                    # 발행일시 파싱
-                    reg_date_obj = None
-                    if reg_date_str and reg_date_str != "-":
-                        try:
-                            date_part = reg_date_str.split(' ')[0] if ' ' in reg_date_str else reg_date_str
-                            reg_date_obj = datetime.strptime(date_part, '%Y-%m-%d').date()
-                        except:
-                            pass
-                    
-                    # 발행일시가 해당 주차 기간 내에 있는 경우만 포함 (발행일시가 없으면 포함)
-                    if reg_date_obj is None or (start_date_obj <= reg_date_obj <= end_date_obj):
-                        # 크롤링 결과를 마스터 데이터로 저장 (GA4 데이터는 나중에 Left Join)
-                        title = crawl_result[6] if len(crawl_result) > 6 else ""
-                        master_row = {
-                            'pagePath_normalized': normalized_path,
-                            'article_id': extract_article_id(normalized_path),
-                            '작성자': crawl_result[0] if len(crawl_result) > 0 else "관리자",
-                            '좋아요': crawl_result[1] if len(crawl_result) > 1 else 0,
-                            '댓글': crawl_result[2] if len(crawl_result) > 2 else 0,
-                            '카테고리': crawl_result[3] if len(crawl_result) > 3 else "뉴스",
-                            '세부카테고리': crawl_result[4] if len(crawl_result) > 4 else "이슈",
-                            '실발행일시': reg_date_str,
-                            '제목': title
-                        }
-                        published_articles_master.append(master_row)
-                except:
-                    pass
+                paths_to_crawl.append(normalized_path)
+        
+        # 병렬 크롤링 수행
+        if paths_to_crawl:
+            crawl_results_dict = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+                futures = {executor.submit(crawl_single_article_cached, path): path for path in paths_to_crawl}
+                for future in concurrent.futures.as_completed(futures):
+                    normalized_path = futures[future]
+                    try:
+                        crawl_result = future.result(timeout=3.0)
+                        crawl_results_dict[normalized_path] = crawl_result
+                    except:
+                        crawl_results_dict[normalized_path] = ("관리자", 0, 0, "뉴스", "이슈", "-", "")
+            
+            # 크롤링 결과 처리
+            for normalized_path in paths_to_crawl:
+                crawl_result = crawl_results_dict.get(normalized_path, ("관리자", 0, 0, "뉴스", "이슈", "-", ""))
+                reg_date_str = crawl_result[5] if len(crawl_result) > 5 else "-"
+                
+                # 발행일시 파싱
+                reg_date_obj = None
+                if reg_date_str and reg_date_str != "-":
+                    try:
+                        date_part = reg_date_str.split(' ')[0] if ' ' in reg_date_str else reg_date_str
+                        reg_date_obj = datetime.strptime(date_part, '%Y-%m-%d').date()
+                    except:
+                        pass
+                
+                # 발행일시가 해당 주차 기간 내에 있는 경우만 포함 (발행일시가 없으면 포함)
+                first_date_obj = first_view_dates[normalized_path].date() if hasattr(first_view_dates[normalized_path], 'date') else pd.to_datetime(first_view_dates[normalized_path]).date()
+                if reg_date_obj is None or (start_date_obj <= reg_date_obj <= end_date_obj):
+                    # 크롤링 결과를 마스터 데이터로 저장 (GA4 데이터는 나중에 Left Join)
+                    title = crawl_result[6] if len(crawl_result) > 6 else ""
+                    master_row = {
+                        'pagePath_normalized': normalized_path,
+                        'article_id': extract_article_id(normalized_path),
+                        '작성자': crawl_result[0] if len(crawl_result) > 0 else "관리자",
+                        '좋아요': crawl_result[1] if len(crawl_result) > 1 else 0,
+                        '댓글': crawl_result[2] if len(crawl_result) > 2 else 0,
+                        '카테고리': crawl_result[3] if len(crawl_result) > 3 else "뉴스",
+                        '세부카테고리': crawl_result[4] if len(crawl_result) > 4 else "이슈",
+                        '실발행일시': reg_date_str,
+                        '제목': title
+                    }
+                    published_articles_master.append(master_row)
     
     # [STEP 2] 크롤링 결과를 마스터 데이터로 사용 (발행일시 기준으로 해당 주차 기간 내 발행된 기사만 필터링)
     if published_articles_master:

@@ -54,14 +54,11 @@ with c2:
         if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
             st.session_state['print_mode'] = False
             st.rerun()
-        if col_btn2.button("📄 PDF로 저장", type="primary"):
-            st.session_state['generate_pdf'] = True
-            st.rerun()
+        # PDF 저장 버튼 - 항상 표시
+        col_btn2.button("📄 PDF로 저장", type="primary", key="pdf_save_print")
     else:
-        # 일반 모드에서 바로 PDF 저장 버튼 표시
-        if col_btn2.button("📄 PDF로 저장", type="primary"):
-            st.session_state['generate_pdf'] = True
-            st.rerun()
+        # 일반 모드에서 바로 PDF 저장 버튼 표시 - 항상 표시
+        col_btn2.button("📄 PDF로 저장", type="primary", key="pdf_save_normal")
         
     if not st.session_state['print_mode']:
         selected_week = st.selectbox("📅 조회 주차", list(WEEK_MAP.keys()), key="week_select", label_visibility="collapsed")
@@ -185,7 +182,210 @@ else:
 
 st.markdown('<div class="footer-note no-print">※ 본 보고서는 쿡앤셰프(Cook&Chef) 홈페이지 및 애널리틱스 데이터를 활용하여 구성하였습니다.</div>', unsafe_allow_html=True)
 
-# PDF 생성 스크립트 (세션 상태가 True일 때만 실행)
+# PDF 저장 버튼 클릭 감지 및 PDF 생성 스크립트
+pdf_button_script = """
+<script>
+(function() {
+    function attachPDFButtonListeners() {
+        // PDF 저장 버튼 찾기 - 여러 선택자 시도
+        const selectors = [
+            'button[kind="primaryForm"]',
+            'button[data-testid="baseButton-secondary"]',
+            'button.stButton button',
+            '.stButton > button'
+        ];
+        
+        let pdfButtons = [];
+        selectors.forEach(function(selector) {
+            const buttons = document.querySelectorAll(selector);
+            buttons.forEach(function(btn) {
+                const btnText = btn.textContent.trim();
+                if (btnText.includes('PDF로 저장') || btnText.includes('📄')) {
+                    pdfButtons.push(btn);
+                }
+            });
+        });
+        
+        // 중복 제거
+        pdfButtons = Array.from(new Set(pdfButtons));
+        
+        pdfButtons.forEach(function(btn) {
+            // 이미 리스너가 추가되었는지 확인
+            if (btn.dataset.pdfListener === 'true') {
+                return;
+            }
+            btn.dataset.pdfListener = 'true';
+            
+            // 클릭 이벤트 리스너 추가
+            btn.addEventListener('click', function(e) {
+                // Streamlit의 기본 동작은 유지하되, 추가로 PDF 생성
+                setTimeout(function() {
+                    generatePDF();
+                }, 300);
+            }, true); // capture phase에서 실행
+        });
+    }
+    
+    function generatePDF() {
+        // html2pdf.js가 로드될 때까지 대기
+        if (typeof html2pdf === 'undefined') {
+            setTimeout(generatePDF, 200);
+            return;
+        }
+        
+        const isPrintMode = document.querySelector('.print-preview-layout') !== null;
+        
+        if (isPrintMode) {
+            // 인쇄 모드용 PDF 저장
+            const element = document.querySelector('.print-preview-layout');
+            if (!element) {
+                alert('PDF로 저장할 내용을 찾을 수 없습니다.');
+                return;
+            }
+            
+            const opt = {
+                margin: [15, 10, 15, 10],
+                filename: '쿡앤셰프_주간성과보고서.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true,
+                    logging: false,
+                    letterRendering: true,
+                    windowWidth: element.scrollWidth,
+                    windowHeight: element.scrollHeight
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'landscape'
+                }
+            };
+            
+            html2pdf().set(opt).from(element).save().catch(function(err) {
+                console.error('PDF 생성 오류:', err);
+                alert('PDF 저장 중 오류가 발생했습니다: ' + err.message);
+            });
+        } else {
+            // 일반 모드용 PDF 저장 (모든 탭 포함)
+            const mainContainer = document.querySelector('.block-container');
+            if (!mainContainer) {
+                alert('PDF로 저장할 내용을 찾을 수 없습니다.');
+                return;
+            }
+            
+            // PDF 저장용 임시 컨테이너 생성
+            const pdfContainer = document.createElement('div');
+            pdfContainer.className = 'pdf-export-wrapper';
+            pdfContainer.style.cssText = 'position: absolute; left: -9999px; width: 297mm; background: white; padding: 20px; font-family: Pretendard, sans-serif;';
+            
+            // 헤더 영역 복사
+            const reportTitle = mainContainer.querySelector('.report-title');
+            const periodInfo = mainContainer.querySelector('.period-info');
+            const updateTime = mainContainer.querySelector('.update-time');
+            
+            if (reportTitle) {
+                const titleDiv = document.createElement('div');
+                titleDiv.innerHTML = reportTitle.outerHTML;
+                pdfContainer.appendChild(titleDiv);
+            }
+            
+            if (periodInfo) {
+                pdfContainer.appendChild(periodInfo.cloneNode(true));
+            }
+            
+            if (updateTime) {
+                pdfContainer.appendChild(updateTime.cloneNode(true));
+            }
+            
+            // 탭 버튼에서 섹션 제목 가져오기
+            const tabButtons = mainContainer.querySelectorAll('[data-testid="stTabs"] button[role="tab"]');
+            const tabTitles = Array.from(tabButtons).map(btn => btn.textContent.trim());
+            
+            // 모든 탭 컨텐츠 복사 (숨겨진 탭도 포함)
+            const tabPanels = mainContainer.querySelectorAll('[data-testid="stTabs"] [role="tabpanel"]');
+            tabPanels.forEach(function(tab, index) {
+                // 페이지 브레이크 추가 (첫 번째 섹션 제외)
+                if (index > 0) {
+                    const pageBreak = document.createElement('div');
+                    pageBreak.style.cssText = 'page-break-before: always;';
+                    pdfContainer.appendChild(pageBreak);
+                }
+                
+                // 섹션 헤더 추가
+                const sectionHeader = document.createElement('div');
+                sectionHeader.className = 'section-header-container';
+                sectionHeader.style.cssText = 'margin-top: 30px; margin-bottom: 25px; padding: 15px 25px; background-color: #fffcf7; border-left: 8px solid #1a237e; border-radius: 4px;';
+                const headerText = document.createElement('div');
+                headerText.className = 'section-header';
+                headerText.style.cssText = 'font-size: 1.8rem; font-weight: 800; color: #1a237e; margin: 0;';
+                headerText.textContent = tabTitles[index] || ('섹션 ' + (index + 1));
+                sectionHeader.appendChild(headerText);
+                pdfContainer.appendChild(sectionHeader);
+                
+                // 탭 내용 복사
+                const tabContent = tab.cloneNode(true);
+                tabContent.style.display = 'block';
+                tabContent.style.visibility = 'visible';
+                tabContent.style.height = 'auto';
+                tabContent.style.overflow = 'visible';
+                pdfContainer.appendChild(tabContent);
+            });
+            
+            document.body.appendChild(pdfContainer);
+            
+            const opt = {
+                margin: [15, 10, 15, 10],
+                filename: '쿡앤셰프_주간성과보고서.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true,
+                    logging: false,
+                    letterRendering: true,
+                    windowWidth: pdfContainer.scrollWidth,
+                    windowHeight: pdfContainer.scrollHeight,
+                    scrollX: 0,
+                    scrollY: 0
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'landscape'
+                }
+            };
+            
+            html2pdf().set(opt).from(pdfContainer).save().then(function() {
+                if (pdfContainer.parentNode) {
+                    document.body.removeChild(pdfContainer);
+                }
+            }).catch(function(err) {
+                console.error('PDF 생성 오류:', err);
+                alert('PDF 저장 중 오류가 발생했습니다: ' + err.message);
+                if (pdfContainer.parentNode) {
+                    document.body.removeChild(pdfContainer);
+                }
+            });
+        }
+    }
+    
+    // 페이지 로드 시 버튼 리스너 추가
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(attachPDFButtonListeners, 500);
+        });
+    } else {
+        setTimeout(attachPDFButtonListeners, 500);
+    }
+    
+    // Streamlit이 동적으로 버튼을 추가할 수 있으므로 주기적으로 확인
+    setInterval(attachPDFButtonListeners, 1000);
+})();
+</script>
+"""
+st.components.v1.html(pdf_button_script, height=0, width=0)
+
+# PDF 생성 스크립트 (세션 상태가 True일 때만 실행) - 이제 사용하지 않지만 호환성을 위해 유지
 if st.session_state.get('generate_pdf', False):
     if st.session_state['print_mode']:
         # 인쇄 모드용 PDF 저장

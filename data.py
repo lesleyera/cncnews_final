@@ -737,6 +737,7 @@ def load_all_dashboard_data(selected_week):
         first_view_dates = df_raw_all_with_date.groupby('pagePath_normalized')['date'].min()
         
         # 해당 주차에 처음 조회가 발생한 기사 필터링 (크롤링 기준 마스터 데이터)
+        # 모든 기사를 크롤링해서 발행일시 확인 후, 해당 주차 기간 내 발행된 기사만 필터링
         for normalized_path, first_date in first_view_dates.items():
             first_date_obj = first_date.date() if hasattr(first_date, 'date') else pd.to_datetime(first_date).date()
             # 이전 주차에 조회가 없었고, 해당 주차 기간 내에 첫 조회가 발생한 경우
@@ -745,26 +746,69 @@ def load_all_dashboard_data(selected_week):
                 crawl_path = normalized_path
                 try:
                     crawl_result = crawl_single_article_cached(crawl_path)
-                    # 크롤링 결과를 마스터 데이터로 저장 (GA4 데이터는 나중에 Left Join)
-                    master_row = {
-                        'pagePath_normalized': normalized_path,
-                        'article_id': extract_article_id(normalized_path),
-                        '작성자': crawl_result[0] if len(crawl_result) > 0 else "관리자",
-                        '좋아요': crawl_result[1] if len(crawl_result) > 1 else 0,
-                        '댓글': crawl_result[2] if len(crawl_result) > 2 else 0,
-                        '카테고리': crawl_result[3] if len(crawl_result) > 3 else "뉴스",
-                        '세부카테고리': crawl_result[4] if len(crawl_result) > 4 else "이슈",
-                        '실발행일시': crawl_result[5] if len(crawl_result) > 5 else "-"
-                    }
-                    published_articles_master.append(master_row)
+                    reg_date_str = crawl_result[5] if len(crawl_result) > 5 else "-"
+                    
+                    # 발행일시 파싱
+                    reg_date_obj = None
+                    if reg_date_str and reg_date_str != "-":
+                        try:
+                            date_part = reg_date_str.split(' ')[0] if ' ' in reg_date_str else reg_date_str
+                            reg_date_obj = datetime.strptime(date_part, '%Y-%m-%d').date()
+                        except:
+                            pass
+                    
+                    # 발행일시가 해당 주차 기간 내에 있는 경우만 포함 (발행일시가 없으면 포함)
+                    if reg_date_obj is None or (start_date_obj <= reg_date_obj <= end_date_obj):
+                        # 크롤링 결과를 마스터 데이터로 저장 (GA4 데이터는 나중에 Left Join)
+                        master_row = {
+                            'pagePath_normalized': normalized_path,
+                            'article_id': extract_article_id(normalized_path),
+                            '작성자': crawl_result[0] if len(crawl_result) > 0 else "관리자",
+                            '좋아요': crawl_result[1] if len(crawl_result) > 1 else 0,
+                            '댓글': crawl_result[2] if len(crawl_result) > 2 else 0,
+                            '카테고리': crawl_result[3] if len(crawl_result) > 3 else "뉴스",
+                            '세부카테고리': crawl_result[4] if len(crawl_result) > 4 else "이슈",
+                            '실발행일시': reg_date_str
+                        }
+                        published_articles_master.append(master_row)
                 except:
                     pass
     
-    # [STEP 2] 크롤링 결과를 마스터 데이터로 사용 (최대 10건)
+    # [STEP 2] 크롤링 결과를 마스터 데이터로 사용 (발행일시 기준으로 해당 주차 기간 내 발행된 기사만 필터링)
     if published_articles_master:
         df_master = pd.DataFrame(published_articles_master)
-        # 최대 10건으로 제한 (크롤링 기준)
-        df_master = df_master.head(10)
+        
+        # 발행일시를 기준으로 해당 주차 기간 내에 발행된 기사만 필터링
+        def parse_date(date_str):
+            """발행일시 문자열을 날짜 객체로 변환"""
+            if not date_str or date_str == "-":
+                return None
+            try:
+                # "2026-01-07 12:34:56" 형식 파싱
+                date_str_clean = str(date_str).strip()
+                if ' ' in date_str_clean:
+                    date_part = date_str_clean.split(' ')[0]
+                else:
+                    date_part = date_str_clean
+                return datetime.strptime(date_part, '%Y-%m-%d').date()
+            except:
+                return None
+        
+        df_master['발행일시_parsed'] = df_master['실발행일시'].apply(parse_date)
+        
+        # 해당 주차 기간 내에 발행된 기사만 필터링 (발행일시가 있는 경우만)
+        df_master_filtered = df_master[
+            (df_master['발행일시_parsed'].notna()) & 
+            (df_master['발행일시_parsed'] >= start_date_obj) & 
+            (df_master['발행일시_parsed'] <= end_date_obj)
+        ].copy()
+        
+        # 발행일시가 없는 기사도 포함 (크롤링 실패 등)
+        df_master_no_date = df_master[df_master['발행일시_parsed'].isna()].copy()
+        
+        # 두 데이터프레임 합치기 (발행일시 기준 필터링된 기사 + 발행일시 없는 기사)
+        df_master = pd.concat([df_master_filtered, df_master_no_date], ignore_index=True)
+        df_master = df_master.drop(columns=['발행일시_parsed'])
         
         # [STEP 3] GA4 데이터와 Left Join (정규화된 경로 기준)
         # GA4 데이터 집계 (정규화된 경로 기준)
@@ -838,7 +882,7 @@ def load_all_dashboard_data(selected_week):
         df_published['유입경로 1순위'] = "-"
         df_published_top10 = df_published
             
-        # 이번주 발행기사 전체를 df_published_all로 변환 (기자별 분석용) - 크롤링 기준 10건
+        # 이번주 발행기사 전체를 df_published_all로 변환 (기자별 분석용) - 크롤링 기준 발행일시 필터링된 전체 기사
         df_published_all = df_published_all.rename(columns={
             'pageTitle': '제목', 
             'pagePath_normalized': '경로', 
@@ -855,9 +899,11 @@ def load_all_dashboard_data(selected_week):
     # 이번주 발행기사 전체 (기자별 분석용) - 크롤링 기준 마스터 데이터
     df_published_all_week = df_published_all if 'df_published_all' in locals() else pd.DataFrame()
     
-    # 발행기사 수를 크롤링 기준 마스터 데이터(최대 10건)로 재계산
+    # 발행기사 수를 크롤링 기준 마스터 데이터(발행일시 필터링된 전체 기사)로 재계산
     if not df_published_all_week.empty:
         published_article_count = len(df_published_all_week)
+    else:
+        published_article_count = 0
     
     return (sel_uv, sel_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
             df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 

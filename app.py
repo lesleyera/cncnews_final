@@ -22,6 +22,12 @@ st.set_page_config(
 st.markdown(config.CSS, unsafe_allow_html=True)
 st.markdown(config.PRINT_CSS, unsafe_allow_html=True)
 
+# html2pdf.js 미리 로드
+pdf_library_script = """
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+"""
+st.components.v1.html(pdf_library_script, height=0, width=0)
+
 # 3. 보안 체크
 if not auth.check_password():
     st.stop()
@@ -49,19 +55,48 @@ with c2:
         if col_btn2.button("📄 PDF로 저장", type="primary"):
             # PDF 저장을 위한 JavaScript
             pdf_save_script = """
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
             <script>
             (function() {
-                const element = document.querySelector('.print-preview-layout') || document.body;
-                const opt = {
-                    margin: [15, 10, 15, 10],
-                    filename: '쿡앤셰프_주간성과보고서.pdf',
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-                };
+                function generatePDF() {
+                    // html2pdf.js가 로드될 때까지 대기
+                    if (typeof html2pdf === 'undefined') {
+                        setTimeout(generatePDF, 100);
+                        return;
+                    }
+                    
+                    const element = document.querySelector('.print-preview-layout');
+                    if (!element) {
+                        alert('PDF로 저장할 내용을 찾을 수 없습니다.');
+                        return;
+                    }
+                    
+                    const opt = {
+                        margin: [15, 10, 15, 10],
+                        filename: '쿡앤셰프_주간성과보고서.pdf',
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { 
+                            scale: 2, 
+                            useCORS: true,
+                            logging: false,
+                            letterRendering: true,
+                            windowWidth: element.scrollWidth,
+                            windowHeight: element.scrollHeight
+                        },
+                        jsPDF: { 
+                            unit: 'mm', 
+                            format: 'a4', 
+                            orientation: 'landscape'
+                        }
+                    };
+                    
+                    html2pdf().set(opt).from(element).save().catch(function(err) {
+                        console.error('PDF 생성 오류:', err);
+                        alert('PDF 저장 중 오류가 발생했습니다: ' + err.message);
+                    });
+                }
                 
-                html2pdf().set(opt).from(element).save();
+                // 약간의 지연 후 실행 (DOM 준비 대기)
+                setTimeout(generatePDF, 300);
             })();
             </script>
             """

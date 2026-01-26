@@ -318,10 +318,10 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             
             df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:10] + '...' if len(str(x)) > 10 else str(x))
             
-            # 순위 순서대로 정렬 (1위부터 10위까지)
-            df_top10_sorted = df_top10.sort_values('순위')
+            # 순위 순서대로 정렬 (1위부터 10위까지) - 순위별로 내려가게 (1위가 위, 10위가 아래)
+            df_top10_sorted = df_top10.sort_values('순위', ascending=True)
             short_titles_ordered = [t[:10] + '...' if len(str(t)) > 10 else str(t) for t in df_top10_sorted['제목'].tolist()]
-            short_titles_ordered.reverse()
+            # reverse() 제거 - 순위별로 내려가게
             
             # 정규화된 조회수 사용
             fig = px.bar(
@@ -336,7 +336,12 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True, '발행일시': True, '작성자': True}
             )
             
-            fig.update_traces(hovertemplate='<b>%{y}</b><br>제목: %{customdata[2]}<br>작성자: %{customdata[7]}<br>발행일시: %{customdata[6]}<br>순위: %{customdata[4]}위<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', texttemplate='%{text:,}', textposition='outside')
+            # hover 템플릿 수정 - 전체 제목 표시
+            fig.update_traces(
+                hovertemplate='<b>%{customdata[2]}</b><br>순위: %{customdata[4]}위<br>작성자: %{customdata[7]}<br>발행일시: %{customdata[6]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[5]:,.0f}<extra></extra>', 
+                texttemplate='%{text:,}', 
+                textposition='outside'
+            )
             
             fig.update_layout(
                 plot_bgcolor='white',
@@ -344,7 +349,12 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 yaxis_title='기사 (요약)',
                 legend_title_text='유입경로'
             )
+            
+            # y축 순서 설정 - 순위별로 내려가게 (1위가 위, 10위가 아래)
             fig.update_yaxes(categoryorder='array', categoryarray=short_titles_ordered)
+            
+            # y축 레이블에 전체 제목을 툴팁으로 표시하기 위해 customdata 사용
+            # y축 레이블 자체는 짧은 제목이지만, hover 시 전체 제목이 표시됨
             
             st.plotly_chart(fig, use_container_width=True, key="top10_source_distribution_chart")
         else:

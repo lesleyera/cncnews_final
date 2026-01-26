@@ -269,7 +269,7 @@ def render_traffic(df_traffic_curr, df_traffic_last):
     
     df_m.sort_values('이번주 비중', ascending=False, inplace=True)
     
-    st.table(df_m[['유입경로', '이번주 비중', '지난주 비중', '비중 변화']].copy().assign(**{'비중 변화': lambda x: x['비중 변화'].apply(lambda v: f"{v:+.1f}%p")}))
+    st.dataframe(df_m[['유입경로', '이번주 비중', '지난주 비중', '비중 변화']].copy().assign(**{'비중 변화': lambda x: x['비중 변화'].apply(lambda v: f"{v:+.1f}%p")}), use_container_width=True, hide_index=True)
 
 # ----------------- 3. 방문자 특성 (지역) -----------------
 def render_demo_region(df_region_curr, df_region_last):
@@ -308,7 +308,7 @@ def render_demo_region(df_region_curr, df_region_last):
         df_disp['지난주(%)'] = df_disp['비율_지난'].astype(str) + '%'
         df_disp['변화(%p)'] = df_disp['변화(%p)'].apply(lambda x: f"{x:+.1f}%p")
         # 스크롤 없이 전체 지역 나열
-        st.table(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']])
+        st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True)
 
 # ----------------- 3. 방문자 특성 (연령/성별) -----------------
 def render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last):
@@ -350,7 +350,7 @@ def render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_l
             df_disp['이번주(%)'] = df_disp['비율_이번'].astype(str) + '%'
             df_disp['지난주(%)'] = df_disp['비율_지난'].astype(str) + '%'
             df_disp['변화(%p)'] = df_disp['변화(%p)'].apply(lambda x: f"{x:+.1f}%p")
-            st.table(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']])
+            st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True)
         st.markdown("<hr>", unsafe_allow_html=True)
 
 # ----------------- 4. Top 10 상세 -----------------
@@ -380,7 +380,7 @@ def render_top10_detail(df_top10, df_published_top10=None):
         cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
         # 존재하는 컬럼만 선택
         available_cols = [c for c in cols if c in df_p4_display.columns]
-        st.table(df_p4_display[available_cols])
+        st.dataframe(df_p4_display[available_cols], use_container_width=True, hide_index=True)
     
     # 4-1. 최근 발행기사 기준
     if df_published_top10 is not None and not df_published_top10.empty:
@@ -409,7 +409,7 @@ def render_top10_detail(df_top10, df_published_top10=None):
         cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','24시간 방문자수','48시간 방문자수','좋아요','댓글']
         # 존재하는 컬럼만 선택
         available_cols = [c for c in cols if c in df_pub_display.columns]
-        st.table(df_pub_display[available_cols])
+        st.dataframe(df_pub_display[available_cols], use_container_width=True, hide_index=True)
 
 # ----------------- 5. Top 10 추이 -----------------
 def render_top10_trends(df_top10, df_top10_sources=None):
@@ -430,7 +430,7 @@ def render_top10_trends(df_top10, df_top10_sources=None):
         if '유입경로 1순위' not in df_p5.columns:
             df_p5['유입경로 1순위'] = "-"
             
-        st.table(df_p5[cols])
+        st.dataframe(df_p5[cols], use_container_width=True, hide_index=True)
         
         if df_top10_sources is not None and not df_top10_sources.empty:
             # df_top10의 순위 순서대로 정렬
@@ -747,7 +747,7 @@ def render_category(df_published_all):
         cat_sub['전체조회수'] = cat_sub['전체조회수'].map('{:,}'.format)
         
         st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
-        st.table(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']])
+        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
         
         # [수정] 각주 추가
         st.markdown("<div style='font-size: 0.85rem; color: #78909c; margin-top: 5px;'>* 평균조회수: 카테고리 전체 조회수 ÷ 카테고리 기사 수</div>", unsafe_allow_html=True)
@@ -767,7 +767,7 @@ def render_writer_analysis(writers_df_real, writers_df_pen):
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.table(disp_w)
+        st.dataframe(disp_w, use_container_width=True, hide_index=True)
     else:
         st.info("본명 기준 기자 실적 없음")
     
@@ -780,6 +780,6 @@ def render_writer_analysis(writers_df_real, writers_df_pen):
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.table(disp_w)
+        st.dataframe(disp_w, use_container_width=True, hide_index=True)
     else:
         st.info("필명 기준 기자 실적 없음")

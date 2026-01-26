@@ -974,24 +974,6 @@ def load_all_dashboard_data(selected_week):
             'userEngagementDuration': '평균체류시간', 
             'bounceRate': '이탈률'
         })
-        
-        # 제목이 비어있는 행에 대해 다시 크롤링 (경로가 있는 경우만)
-        if '제목' in df_published_all.columns and '경로' in df_published_all.columns:
-            empty_title_mask = df_published_all['제목'].isna() | (df_published_all['제목'].astype(str).str.strip() == '')
-            empty_indices = df_published_all[empty_title_mask].index.tolist()
-            
-            if empty_indices:
-                # 비어있는 제목만 다시 크롤링
-                for idx in empty_indices:
-                    path = df_published_all.loc[idx, '경로']
-                    try:
-                        crawl_result = crawl_single_article_cached(path)
-                        title = crawl_result[6] if len(crawl_result) > 6 else ""
-                        if title:
-                            df_published_all.loc[idx, '제목'] = title
-                    except:
-                        pass
-        
         df_published_all['체류시간_fmt'] = df_published_all['평균체류시간'].apply(format_duration)
         df_published_all['발행일시'] = df_published_all['실발행일시']
     else:

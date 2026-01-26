@@ -633,14 +633,15 @@ def load_all_dashboard_data(selected_week):
             order_by_metric='activeUsers',
             limit=10000
         )
-        visitor_24h = {}
+        # 기사별 24시간/48시간 방문자 수 계산 (딕셔너리로 저장, visitor_24h/visitor_48h는 전체 방문자 수로 유지)
+        visitor_24h_per_article = {}
         if not df_24h_all.empty:
             # URL 정규화 적용
             df_24h_all['pagePath_normalized'] = df_24h_all['pagePath'].apply(normalize_page_path)
             # 정규화된 경로 기준으로 집계
             df_24h_grouped = df_24h_all.groupby('pagePath_normalized')['activeUsers'].sum()
             for path, uv in df_24h_grouped.items():
-                visitor_24h[path] = int(uv) if pd.notna(uv) else 0
+                visitor_24h_per_article[path] = int(uv) if pd.notna(uv) else 0
         
         # 48시간 방문자 수: 마지막 날 + 그 전날 (2일치)
         # (주차 기간 내에서만 계산)
@@ -656,18 +657,18 @@ def load_all_dashboard_data(selected_week):
             order_by_metric='activeUsers',
             limit=10000
         )
-        visitor_48h = {}
+        visitor_48h_per_article = {}
         if not df_48h_all.empty:
             # URL 정규화 적용
             df_48h_all['pagePath_normalized'] = df_48h_all['pagePath'].apply(normalize_page_path)
             # 정규화된 경로 기준으로 집계 (중복 제거된 UV)
             df_48h_grouped = df_48h_all.groupby('pagePath_normalized')['activeUsers'].sum()
             for path, uv in df_48h_grouped.items():
-                visitor_48h[path] = int(uv) if pd.notna(uv) else 0
+                visitor_48h_per_article[path] = int(uv) if pd.notna(uv) else 0
         
         # 24시간/48시간 방문자 수는 정규화된 경로 기준으로 매핑
-        df_top10['24시간방문자수'] = df_top10['경로'].apply(lambda x: visitor_24h.get(x, 0))
-        df_top10['48시간방문자수'] = df_top10['경로'].apply(lambda x: visitor_48h.get(x, 0))
+        df_top10['24시간방문자수'] = df_top10['경로'].apply(lambda x: visitor_24h_per_article.get(x, 0))
+        df_top10['48시간방문자수'] = df_top10['경로'].apply(lambda x: visitor_48h_per_article.get(x, 0))
         
         # 검증: 24시간/48시간 방문자 수가 전체방문자수보다 크면 전체방문자수로 제한
         df_top10['24시간방문자수'] = df_top10.apply(

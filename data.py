@@ -574,16 +574,17 @@ def load_all_dashboard_data(selected_week):
 
         # 6-2. 크롤링 수행 (정규화된 경로 사용)
         scraped_data_dict = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(crawl_single_article_cached, path): idx for idx, path in enumerate(paths)}
-            for future in concurrent.futures.as_completed(futures):
-                idx = futures[future]
-                try:
-                    result = future.result(timeout=3.0)
-                    scraped_data_dict[idx] = result
-                except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-")
+        if paths_normalized:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(crawl_single_article_cached, path): idx for idx, path in enumerate(paths_normalized)}
+                for future in concurrent.futures.as_completed(futures):
+                    idx = futures[future]
+                    try:
+                        result = future.result(timeout=3.0)
+                        scraped_data_dict[idx] = result
+                    except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-")
         
-        scraped_data = [scraped_data_dict[i] for i in range(len(paths))]
+        scraped_data = [scraped_data_dict[i] for i in range(len(paths_normalized))] if paths_normalized else []
         auths, lks, cmts, cats, subcats, reg_dates = zip(*scraped_data) if scraped_data else ([], [], [], [], [], [])
         
         # 6-3. 데이터 병합 및 정리

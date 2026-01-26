@@ -650,42 +650,7 @@ def render_category(df_published_all):
     if not df_published_all.empty:
         df_real = df_published_all.copy()
         
-        # 제목 컬럼이 없거나 비어있으면 경로를 사용해서 크롤링으로 제목 가져오기
-        need_crawl = False
-        if '제목' not in df_real.columns:
-            need_crawl = True
-        else:
-            # 제목 컬럼이 있으면 비어있는지 확인
-            try:
-                if df_real['제목'].isna().all():
-                    need_crawl = True
-                else:
-                    # 제목이 모두 빈 문자열인지 확인
-                    non_empty = df_real['제목'].astype(str).str.strip()
-                    if (non_empty == '').all():
-                        need_crawl = True
-            except:
-                need_crawl = True
-        
-        if need_crawl and '경로' in df_real.columns:
-            # 경로 컬럼이 있으면 크롤링으로 제목 가져오기
-            titles = [""] * len(df_real)
-            paths = df_real['경로'].tolist()
-            
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(data.crawl_single_article_cached, path): idx for idx, path in enumerate(paths)}
-                for future in concurrent.futures.as_completed(futures):
-                    idx = futures[future]
-                    try:
-                        crawl_result = future.result(timeout=2.0)
-                        title = crawl_result[6] if len(crawl_result) > 6 else ""
-                        titles[idx] = title
-                    except:
-                        titles[idx] = ""
-            
-            df_real['제목'] = titles
-        
-        # 제목 컬럼이 여전히 없으면 경고
+        # 제목 컬럼이 없으면 경고 (data.py에서 이미 처리했으므로 여기서는 확인만)
         if '제목' not in df_real.columns:
             st.warning("카테고리 분석에 필요한 제목 데이터가 없습니다.")
             return

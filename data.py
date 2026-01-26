@@ -150,33 +150,43 @@ def crawl_single_article_cached(url_path):
         title = ""
 
         # ---------------------------------------------------------
-        # 0. 제목 추출
+        # 0. 제목 추출 (가장 큰 글씨, 카테고리 바로 밑)
         # ---------------------------------------------------------
-        # [Priority 1] h3 태그에서 제목 추출
-        title_elem = soup.select_one('h3')
-        if title_elem:
-            title = title_elem.get_text(strip=True)
+        title = ""
         
-        # [Priority 2] .viewTitle 섹션에서 제목 추출
+        # [Priority 1] .viewTitle 섹션의 h3 태그 (기사 페이지의 주 제목)
+        view_title_section = soup.select_one('.viewTitle')
+        if view_title_section:
+            h3_in_view = view_title_section.select_one('h3')
+            if h3_in_view:
+                title = h3_in_view.get_text(strip=True)
+        
+        # [Priority 2] 일반 h3 태그 (viewTitle 외부)
         if not title:
-            view_title_section = soup.select_one('.viewTitle')
-            if view_title_section:
-                h3_in_view = view_title_section.select_one('h3')
-                if h3_in_view:
-                    title = h3_in_view.get_text(strip=True)
+            h3_tags = soup.select('h3')
+            for h3_elem in h3_tags:
+                h3_text = h3_elem.get_text(strip=True)
+                # 카테고리명이나 네비게이션이 아닌 실제 제목 찾기
+                if h3_text and h3_text not in ['쿡앤셰프', 'Cook&Chef', '쿡앤셰프(Cook&Chef)', 'Home', '주요뉴스']:
+                    title = h3_text
+                    break
         
         # [Priority 3] meta 태그에서 제목 추출
         if not title:
-            meta_title = soup.select_one('meta[property="og:title"]') or soup.select_one('title')
-            if meta_title:
-                title = meta_title.get('content', '') or meta_title.get_text(strip=True)
+            meta_title = soup.select_one('meta[property="og:title"]')
+            if meta_title and meta_title.get('content'):
+                title = meta_title.get('content', '').strip()
         
-        # 제목이 카테고리명(쿡앤셰프, Cook&Chef 등)만 있는 경우 제거
-        if title in ['쿡앤셰프', 'Cook&Chef', '쿡앤셰프(Cook&Chef)']:
-            title = ""
-        
-        # Fallback: 제목이 없으면 빈 문자열
+        # [Priority 4] title 태그
         if not title:
+            title_tag = soup.select_one('title')
+            if title_tag:
+                title_text = title_tag.get_text(strip=True)
+                # "쿡앤셰프(Cook&Chef)" 같은 사이트명 제거
+                title = title_text.replace('쿡앤셰프(Cook&Chef)', '').replace('쿡앤셰프', '').replace('Cook&Chef', '').replace('|', '').strip()
+        
+        # 제목이 카테고리명만 있는 경우 제거
+        if title in ['쿡앤셰프', 'Cook&Chef', '쿡앤셰프(Cook&Chef)', '']:
             title = ""
 
         # ---------------------------------------------------------
@@ -964,6 +974,24 @@ def load_all_dashboard_data(selected_week):
             'userEngagementDuration': '평균체류시간', 
             'bounceRate': '이탈률'
         })
+        
+        # 제목이 비어있는 행에 대해 다시 크롤링 (경로가 있는 경우만)
+        if '제목' in df_published_all.columns and '경로' in df_published_all.columns:
+            empty_title_mask = df_published_all['제목'].isna() | (df_published_all['제목'].astype(str).str.strip() == '')
+            empty_indices = df_published_all[empty_title_mask].index.tolist()
+            
+            if empty_indices:
+                # 비어있는 제목만 다시 크롤링
+                for idx in empty_indices:
+                    path = df_published_all.loc[idx, '경로']
+                    try:
+                        crawl_result = crawl_single_article_cached(path)
+                        title = crawl_result[6] if len(crawl_result) > 6 else ""
+                        if title:
+                            df_published_all.loc[idx, '제목'] = title
+                    except:
+                        pass
+        
         df_published_all['체류시간_fmt'] = df_published_all['평균체류시간'].apply(format_duration)
         df_published_all['발행일시'] = df_published_all['실발행일시']
     else:

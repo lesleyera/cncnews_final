@@ -41,31 +41,7 @@ header[data-testid="stHeader"] {{ visibility: hidden !important; }}
 .stTabs [data-baseweb="tab"] {{ height: 60px; background-color: #f7f9fa; border-right: 1px solid #eceff1; color: #607d8b; font-weight: 700; font-size: 1.3rem; flex-grow: 1; text-align: center; }}
 .stTabs [aria-selected="true"] {{ background-color: #fff; color: {COLOR_RED}; border-bottom: 4px solid {COLOR_RED}; }}
 [data-testid="stDataFrame"] thead th {{ background-color: {COLOR_NAVY} !important; color: white !important; font-size: 1.2rem !important; font-weight: 600 !important; }}
-/* 표 스크롤 제거 - 데이터가 있는 모든 행 표시 */
-div[data-testid="stDataFrame"] {{
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-}}
-div[data-testid="stDataFrame"] > div {{
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-}}
-div[data-testid="stDataFrame"] > div > div {{
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-}}
-div[data-testid="stDataFrame"] > div > div > div {{
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-}}
-[data-testid="stDataFrame"] table {{
-    display: table !important;
-    width: 100% !important;
-}}
+/* 표 스타일 개선 */
 [data-testid="stDataFrame"] tbody tr {{
     border-bottom: 1px solid #e0e0e0 !important;
 }}

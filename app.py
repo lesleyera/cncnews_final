@@ -42,40 +42,43 @@ if 'print_mode' not in st.session_state:
 if 'generate_pdf' not in st.session_state:
     st.session_state['generate_pdf'] = False
 
-# 상단 헤더 영역
-c1, c2 = st.columns([2, 1])
-with c1: 
-    st.markdown('<div class="report-title">📰 쿡앤셰프 주간 성과보고서</div>', unsafe_allow_html=True)
+# 상단 헤더 영역 (인쇄 모드에서는 숨김)
+if not st.session_state['print_mode']:
+    c1, c2 = st.columns([2, 1])
+    with c1: 
+        st.markdown('<div class="report-title">📰 쿡앤셰프 주간 성과보고서</div>', unsafe_allow_html=True)
 
-with c2:
-    col_btn1, col_btn2 = st.columns(2)
-    # 인쇄 미리보기 모드 토글
-    if st.session_state['print_mode']:
-        if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
-            st.session_state['print_mode'] = False
-            st.rerun()
-        # 브라우저 인쇄 기능 트리거
-        if col_btn2.button("🖨️ 인쇄/PDF 저장", type="primary"):
-            print_script = """
-            <script>
-            window.print();
-            </script>
-            """
-            st.components.v1.html(print_script, height=0, width=0)
-    else:
+    with c2:
+        col_btn1, col_btn2 = st.columns(2)
         # 일반 모드에서 인쇄 미리보기 버튼
         if col_btn2.button("🖨️ 인쇄 미리보기", type="primary"):
             st.session_state['print_mode'] = True
             st.rerun()
         
-    if not st.session_state['print_mode']:
         selected_week = st.selectbox("📅 조회 주차", list(WEEK_MAP.keys()), key="week_select", label_visibility="collapsed")
         st.session_state['selected_week_for_print'] = selected_week
-    else:
-        selected_week = st.session_state.get('selected_week_for_print', st.session_state.get('week_select', list(WEEK_MAP.keys())[0]))
 
-st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_week]}</div>', unsafe_allow_html=True)
-st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
+    st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_week]}</div>', unsafe_allow_html=True)
+    st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
+else:
+    # 인쇄 모드에서는 헤더 영역에 버튼만 표시
+    col_btn1, col_btn2 = st.columns([1, 1])
+    with col_btn1:
+        if st.button("🔙 대시보드로 복귀", type="secondary"):
+            st.session_state['print_mode'] = False
+            st.rerun()
+    with col_btn2:
+        if st.button("🖨️ 인쇄/PDF 저장", type="primary"):
+            print_script = """
+            <script>
+            setTimeout(function() {
+                window.print();
+            }, 500);
+            </script>
+            """
+            st.components.v1.html(print_script, height=0, width=0)
+    
+    selected_week = st.session_state.get('selected_week_for_print', st.session_state.get('week_select', list(WEEK_MAP.keys())[0]))
 
 # 데이터 로드
 # [수정] data.py에서 반환하는 published_article_count, df_published_top10, df_published_all_week 추가 수신 (총 21개 항목)
@@ -99,39 +102,35 @@ if not df_top10.empty:
 # 뷰 렌더링
 if st.session_state['print_mode']:
     # [인쇄 모드] - 모든 섹션을 순차적으로 표시
+    # 인쇄 모드에서는 헤더를 숨기고 콘텐츠만 표시
+    st.markdown("""
+    <style>
+    .print-mode-hide {
+        display: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
     
-    # 1. 성과 요약
+    # 1. 성과 요약 (첫 번째 섹션은 페이지 넘김 없이)
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
-    st.markdown("<br>", unsafe_allow_html=True)
     
     # 2. 접근 경로
     views.render_traffic(df_traffic_curr, df_traffic_last)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
     # 3. 방문자 특성
     views.render_demo_region(df_region_curr, df_region_last)
-    
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
     views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
-    
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
     # 4. Top10 상세
     views.render_top10_detail(df_top10, df_published_top10)
-    st.markdown("<br>", unsafe_allow_html=True)
     
     # 5. Top10 추이
     views.render_top10_trends(df_top10, df_top10_sources)
     
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
-    
     # 6. 카테고리별 분석
     views.render_category(df_top10)
-    
-    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
     # 7. 기자별 분석
     views.render_writer_analysis(writers_df_real, writers_df_pen)

@@ -375,16 +375,44 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             # 존재하는 컬럼만 선택
             available_custom_cols = [col for col in custom_data_cols if col in df_src.columns]
             
+            # 그래프 식별자를 제목이 아닌 정규화된 URL(경로)로 변경하여 동일 제목 기사 분리
+            # 경로를 Y축 레이블로 사용하되, 표시는 제목으로
+            df_src['y_axis_key'] = df_src['pagePath']  # 정규화된 경로를 식별자로 사용
+            
+            # df_top10의 순위 순서에 맞춰 Y축 순서 결정 (1위가 위, 10위가 아래)
+            # df_top10_sorted의 경로 순서를 기준으로 Y축 순서 설정
+            ordered_paths = df_top10_sorted['경로'].tolist()
+            # df_src에서 순위별로 그룹화하여 경로 순서 유지
+            df_src['y_order'] = df_src['pagePath'].map({path: idx for idx, path in enumerate(ordered_paths)}).fillna(999)
+            df_src = df_src.sort_values(['y_order', '유입경로']).reset_index(drop=True)
+            
             fig = px.bar(
                 df_src, 
                 x='screenPageViews_normalized',   
-                y='기사제목_short',     
+                y='y_axis_key',  # 정규화된 경로를 Y축 키로 사용 (제목이 아닌)
                 color='유입경로',
                 text='screenPageViews_normalized',
                 title='기사별 유입경로 비중',
                 orientation='h',       
                 color_discrete_sequence=CHART_PALETTE,
-                custom_data=available_custom_cols
+                custom_data=available_custom_cols,
+                category_orders={'y_axis_key': ordered_paths}  # 순위 순서대로 정렬
+            )
+            
+            # Y축 레이블을 제목으로 표시 (하지만 식별자는 경로)
+            # df_top10_sorted의 순서대로 제목 매핑
+            path_to_title_map = dict(zip(df_top10_sorted['경로'], df_top10_sorted['제목']))
+            y_tick_texts = []
+            for path in ordered_paths:
+                title = path_to_title_map.get(path, path)
+                short_title = title[:30] + '...' if len(str(title)) > 30 else str(title)
+                y_tick_texts.append(short_title)
+            
+            # Y축 레이블 업데이트 (순위 순서대로)
+            fig.update_yaxes(
+                tickmode='array',
+                tickvals=ordered_paths,
+                ticktext=y_tick_texts
             )
             
             # hover 템플릿 수정 - 전체 제목을 맨 위에 명확히 표시
@@ -405,8 +433,7 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 legend_title_text='유입경로'
             )
             
-            # y축 순서 설정 - 순위별로 내려가게 (1위가 위, 10위가 아래)
-            fig.update_yaxes(categoryorder='array', categoryarray=short_titles_ordered)
+            # y축 순서는 이미 category_orders로 설정됨 (위에서 ordered_paths 사용)
             
             # y축 레이블에 마우스를 올렸을 때 노란 배경의 커스텀 툴팁 표시
             full_titles_js = str(full_titles_ordered).replace("'", "\\'")

@@ -695,143 +695,159 @@ def load_all_dashboard_data(selected_week):
         df_raw_all = pd.DataFrame()
         df_top10_sources = pd.DataFrame()
     
-    # 6-4. 발행기사 기준 TOP 10 생성 (GA4 기준: 해당 주차에 처음으로 조회가 발생한 기사)
+    # 6-4. 발행기사 기준 TOP 10 생성 (크롤링 기준 마스터 데이터 + GA4 Left Join)
     df_published_top10 = pd.DataFrame()
-    if not df_raw_all.empty:
-        # 기간 날짜 객체 생성
-        start_date_obj = datetime.strptime(s_dt, '%Y-%m-%d').date()
-        end_date_obj = datetime.strptime(e_dt, '%Y-%m-%d').date()
+    
+    # 기간 날짜 객체 생성
+    start_date_obj = datetime.strptime(s_dt, '%Y-%m-%d').date()
+    end_date_obj = datetime.strptime(e_dt, '%Y-%m-%d').date()
+    
+    # 이전 주차 데이터 가져오기 (해당 주차 이전에 조회가 있었는지 확인)
+    prev_week_start = (datetime.strptime(s_dt, '%Y-%m-%d') - timedelta(days=7)).strftime('%Y-%m-%d')
+    prev_week_end = (datetime.strptime(s_dt, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    # 이전 주차에 조회가 있었던 기사 목록 (정규화된 경로 기준)
+    df_prev_week = run_ga4_report(prev_week_start, prev_week_end, ["pagePath", "date"], ["screenPageViews"], "screenPageViews", limit=10000)
+    prev_week_paths = set()
+    if not df_prev_week.empty:
+        df_prev_week['pagePath_normalized'] = df_prev_week['pagePath'].apply(normalize_page_path)
+        prev_week_paths = set(df_prev_week['pagePath_normalized'].unique())
+    
+    # 해당 주차 데이터에서 정규화된 경로 기준으로 첫 조회 날짜 확인
+    df_raw_all_with_date = run_ga4_report(s_dt, e_dt, ["pageTitle", "pagePath", "date"], ["screenPageViews", "activeUsers", "newUsers", "userEngagementDuration", "bounceRate"], "screenPageViews", limit=10000)
+    
+    # [STEP 1] 크롤링 기준 마스터 데이터 생성: 해당 주차에 처음 조회가 발생한 기사 수집
+    published_articles_master = []
+    if not df_raw_all_with_date.empty:
+        df_raw_all_with_date['pagePath_normalized'] = df_raw_all_with_date['pagePath'].apply(normalize_page_path)
+        df_raw_all_with_date['article_id'] = df_raw_all_with_date['pagePath'].apply(extract_article_id)
+        df_raw_all_with_date['date'] = pd.to_datetime(df_raw_all_with_date['date'])
         
-        # 이전 주차 데이터 가져오기 (해당 주차 이전에 조회가 있었는지 확인)
-        prev_week_start = (datetime.strptime(s_dt, '%Y-%m-%d') - timedelta(days=7)).strftime('%Y-%m-%d')
-        prev_week_end = (datetime.strptime(s_dt, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+        # 정규화된 경로별로 첫 조회 날짜 확인
+        first_view_dates = df_raw_all_with_date.groupby('pagePath_normalized')['date'].min()
         
-        # 이전 주차에 조회가 있었던 기사 목록 (정규화된 경로 기준)
-        df_prev_week = run_ga4_report(prev_week_start, prev_week_end, ["pagePath", "date"], ["screenPageViews"], "screenPageViews", limit=10000)
-        prev_week_paths = set()
-        if not df_prev_week.empty:
-            df_prev_week['pagePath_normalized'] = df_prev_week['pagePath'].apply(normalize_page_path)
-            prev_week_paths = set(df_prev_week['pagePath_normalized'].unique())
-        
-        # 해당 주차 데이터에서 정규화된 경로 기준으로 첫 조회 날짜 확인
-        df_raw_all_with_date = run_ga4_report(s_dt, e_dt, ["pageTitle", "pagePath", "date"], ["screenPageViews", "activeUsers", "newUsers", "userEngagementDuration", "bounceRate"], "screenPageViews", limit=100)
-        if not df_raw_all_with_date.empty:
-            df_raw_all_with_date['pagePath_normalized'] = df_raw_all_with_date['pagePath'].apply(normalize_page_path)
-            df_raw_all_with_date['article_id'] = df_raw_all_with_date['pagePath'].apply(extract_article_id)
-            df_raw_all_with_date['date'] = pd.to_datetime(df_raw_all_with_date['date'])
-            
-            # 정규화된 경로별로 첫 조회 날짜 확인
-            first_view_dates = df_raw_all_with_date.groupby('pagePath_normalized')['date'].min()
-            
-            # 해당 주차에 처음 조회가 발생한 기사 필터링
-            published_articles_list = []
-            for normalized_path, first_date in first_view_dates.items():
-                first_date_obj = first_date.date() if hasattr(first_date, 'date') else pd.to_datetime(first_date).date()
-                # 이전 주차에 조회가 없었고, 해당 주차 기간 내에 첫 조회가 발생한 경우
-                if normalized_path not in prev_week_paths and start_date_obj <= first_date_obj <= end_date_obj:
-                    # 해당 기사의 GA4 데이터 찾기 (정규화된 경로 기준)
-                    article_data = df_raw_all_with_date[df_raw_all_with_date['pagePath_normalized'] == normalized_path].copy()
-                    if not article_data.empty:
-                                # 정규화된 경로 기준으로 집계
-                                grouped = article_data.groupby('pagePath_normalized').agg({
-                                    'screenPageViews': 'sum',
-                                    'activeUsers': 'sum',
-                                    'newUsers': 'sum',
-                                    'userEngagementDuration': 'mean',
-                                    'bounceRate': 'mean',
-                                    'pageTitle': 'first'  # 첫 번째 제목 사용
-                                }).reset_index()
-                                
-                                row = grouped.iloc[0].copy()
-                                # 크롤링으로 제목/카테고리 매핑 (정규화된 경로 사용)
-                                crawl_path = normalized_path
-                                try:
-                                    crawl_result = crawl_single_article_cached(crawl_path)
-                                    row['작성자'] = crawl_result[0] if len(crawl_result) > 0 else "관리자"
-                                    row['좋아요'] = crawl_result[1] if len(crawl_result) > 1 else 0
-                                    row['댓글'] = crawl_result[2] if len(crawl_result) > 2 else 0
-                                    row['카테고리'] = crawl_result[3] if len(crawl_result) > 3 else "뉴스"
-                                    row['세부카테고리'] = crawl_result[4] if len(crawl_result) > 4 else "이슈"
-                                    row['실발행일시'] = crawl_result[5] if len(crawl_result) > 5 else "-"
-                                except:
-                                    row['작성자'] = "관리자"
-                                    row['좋아요'] = 0
-                                    row['댓글'] = 0
-                                    row['카테고리'] = "뉴스"
-                                    row['세부카테고리'] = "이슈"
-                                    row['실발행일시'] = "-"
-                                
-                                published_articles_list.append(row)
+        # 해당 주차에 처음 조회가 발생한 기사 필터링 (크롤링 기준 마스터 데이터)
+        for normalized_path, first_date in first_view_dates.items():
+            first_date_obj = first_date.date() if hasattr(first_date, 'date') else pd.to_datetime(first_date).date()
+            # 이전 주차에 조회가 없었고, 해당 주차 기간 내에 첫 조회가 발생한 경우
+            if normalized_path not in prev_week_paths and start_date_obj <= first_date_obj <= end_date_obj:
+                # 크롤링으로 제목/카테고리 매핑 (정규화된 경로 사용)
+                crawl_path = normalized_path
+                try:
+                    crawl_result = crawl_single_article_cached(crawl_path)
+                    # 크롤링 결과를 마스터 데이터로 저장 (GA4 데이터는 나중에 Left Join)
+                    master_row = {
+                        'pagePath_normalized': normalized_path,
+                        'article_id': extract_article_id(normalized_path),
+                        '작성자': crawl_result[0] if len(crawl_result) > 0 else "관리자",
+                        '좋아요': crawl_result[1] if len(crawl_result) > 1 else 0,
+                        '댓글': crawl_result[2] if len(crawl_result) > 2 else 0,
+                        '카테고리': crawl_result[3] if len(crawl_result) > 3 else "뉴스",
+                        '세부카테고리': crawl_result[4] if len(crawl_result) > 4 else "이슈",
+                        '실발행일시': crawl_result[5] if len(crawl_result) > 5 else "-"
+                    }
+                    published_articles_master.append(master_row)
                 except:
                     pass
+    
+    # [STEP 2] 크롤링 결과를 마스터 데이터로 사용 (최대 10건)
+    if published_articles_master:
+        df_master = pd.DataFrame(published_articles_master)
+        # 최대 10건으로 제한 (크롤링 기준)
+        df_master = df_master.head(10)
         
-        if published_articles_list:
-            df_published_all = pd.DataFrame(published_articles_list)  # 이번주 발행기사 전체
-            df_published = df_published_all.copy()
-            
-            # 조회수로 정렬하고 상위 10개 선택 (df_published_top10용)
-            df_published = df_published.sort_values('screenPageViews', ascending=False).head(10)
-            
-            # df_top10과 동일한 형식으로 변환
-            df_published['순위'] = range(1, len(df_published)+1)
-            df_published = df_published.rename(columns={
-                'pageTitle': '제목', 
-                'pagePath_normalized': '경로', 
-                'screenPageViews': '전체조회수', 
-                'activeUsers': '전체방문자수', 
-                'userEngagementDuration': '평균체류시간', 
-                'bounceRate': '이탈률'
-            })
-            
-            def format_duration(sec):
-                try:
-                    sec_int = int(float(sec))
-                    m, s = divmod(sec_int, 60)
-                    return f"{m}분 {s}초"
-                except: return "0분 0초"
-            df_published['체류시간_fmt'] = df_published['평균체류시간'].apply(format_duration)
-            df_published['발행일시'] = df_published['실발행일시']
-            
-            # 24시간, 48시간 방문자 수 추가 (df_top10과 동일한 방식, 정규화된 경로 기준)
-            df_published['24시간방문자수'] = df_published['경로'].apply(lambda x: visitor_24h.get(x, 0))
-            df_published['48시간방문자수'] = df_published['경로'].apply(lambda x: visitor_48h.get(x, 0))
-            
-            # 검증: 24시간/48시간 방문자 수가 전체방문자수보다 크면 전체방문자수로 제한
-            df_published['24시간방문자수'] = df_published.apply(
-                lambda row: min(row['24시간방문자수'], row['전체방문자수']), axis=1
-            )
-            df_published['48시간방문자수'] = df_published.apply(
-                lambda row: min(row['48시간방문자수'], row['전체방문자수']), axis=1
-            )
-            
-            if 'newUsers' in df_published.columns and '전체방문자수' in df_published.columns:
-                df_published['신규방문자비율'] = df_published.apply(
-                    lambda row: f"{round((float(row['newUsers']) / float(row['전체방문자수']) * 100), 1) if float(row['전체방문자수']) > 0 else 0}%",
-                    axis=1
-                )
-            else: 
-                df_published['신규방문자비율'] = f"{new_visitor_ratio}%"
-            
-            df_published['최다유입'] = "-"
-            df_published['유입경로 1순위'] = "-"
-            df_published_top10 = df_published
-            
-            # 이번주 발행기사 전체를 df_published_all로 변환 (기자별 분석용)
-            df_published_all = df_published_all.rename(columns={
-                'pageTitle': '제목', 
-                'pagePath_normalized': '경로', 
-                'screenPageViews': '전체조회수', 
-                'activeUsers': '전체방문자수', 
-                'userEngagementDuration': '평균체류시간', 
-                'bounceRate': '이탈률'
-            })
-            df_published_all['체류시간_fmt'] = df_published_all['평균체류시간'].apply(format_duration)
-            df_published_all['발행일시'] = df_published_all['실발행일시']
+        # [STEP 3] GA4 데이터와 Left Join (정규화된 경로 기준)
+        # GA4 데이터 집계 (정규화된 경로 기준)
+        if not df_raw_all_with_date.empty:
+            df_ga4_agg = df_raw_all_with_date.groupby('pagePath_normalized').agg({
+                'screenPageViews': 'sum',
+                'activeUsers': 'sum',
+                'newUsers': 'sum',
+                'userEngagementDuration': 'mean',
+                'bounceRate': 'mean',
+                'pageTitle': 'first'  # 첫 번째 제목 사용
+            }).reset_index()
         else:
-            df_published_all = pd.DataFrame()
+            df_ga4_agg = pd.DataFrame(columns=['pagePath_normalized', 'screenPageViews', 'activeUsers', 'newUsers', 'userEngagementDuration', 'bounceRate', 'pageTitle'])
+        
+        # Left Join: 크롤링 마스터 데이터를 기준으로 GA4 데이터 병합 (조회수 0인 기사도 포함)
+        df_published_all = pd.merge(df_master, df_ga4_agg, on='pagePath_normalized', how='left')
+        
+        # GA4 데이터가 없는 기사는 0으로 채우기
+        for col in ['screenPageViews', 'activeUsers', 'newUsers']:
+            df_published_all[col] = df_published_all[col].fillna(0)
+        for col in ['userEngagementDuration', 'bounceRate']:
+            df_published_all[col] = df_published_all[col].fillna(0.0)
+        df_published_all['pageTitle'] = df_published_all['pageTitle'].fillna('')
+        
+        # 조회수로 정렬하고 상위 10개 선택 (df_published_top10용)
+        df_published = df_published_all.copy().sort_values('screenPageViews', ascending=False).head(10)
+        
+        # df_top10과 동일한 형식으로 변환
+        df_published['순위'] = range(1, len(df_published)+1)
+        df_published = df_published.rename(columns={
+            'pageTitle': '제목', 
+            'pagePath_normalized': '경로', 
+            'screenPageViews': '전체조회수', 
+            'activeUsers': '전체방문자수', 
+            'userEngagementDuration': '평균체류시간', 
+            'bounceRate': '이탈률'
+        })
+        
+        def format_duration(sec):
+            try:
+                sec_int = int(float(sec))
+                m, s = divmod(sec_int, 60)
+                return f"{m}분 {s}초"
+            except: return "0분 0초"
+        df_published['체류시간_fmt'] = df_published['평균체류시간'].apply(format_duration)
+        df_published['발행일시'] = df_published['실발행일시']
+        
+        # 24시간, 48시간 방문자 수 추가 (df_top10과 동일한 방식)
+        # visitor_24h, visitor_48h는 전체 방문자 수이므로, 각 기사별로는 0으로 설정 (개별 기사별 24h/48h 방문자 수는 별도 계산 필요)
+        df_published['24시간방문자수'] = 0
+        df_published['48시간방문자수'] = 0
+        
+        # 검증: 24시간/48시간 방문자 수가 전체방문자수보다 크면 전체방문자수로 제한
+        df_published['24시간방문자수'] = df_published.apply(
+            lambda row: min(row['24시간방문자수'], row['전체방문자수']), axis=1
+        )
+        df_published['48시간방문자수'] = df_published.apply(
+            lambda row: min(row['48시간방문자수'], row['전체방문자수']), axis=1
+        )
+        
+        if 'newUsers' in df_published.columns and '전체방문자수' in df_published.columns:
+            df_published['신규방문자비율'] = df_published.apply(
+                lambda row: f"{round((float(row['newUsers']) / float(row['전체방문자수']) * 100), 1) if float(row['전체방문자수']) > 0 else 0}%",
+                axis=1
+            )
+        else: 
+            df_published['신규방문자비율'] = f"{new_visitor_ratio}%"
+        
+        df_published['최다유입'] = "-"
+        df_published['유입경로 1순위'] = "-"
+        df_published_top10 = df_published
+            
+        # 이번주 발행기사 전체를 df_published_all로 변환 (기자별 분석용) - 크롤링 기준 10건
+        df_published_all = df_published_all.rename(columns={
+            'pageTitle': '제목', 
+            'pagePath_normalized': '경로', 
+            'screenPageViews': '전체조회수', 
+            'activeUsers': '전체방문자수', 
+            'userEngagementDuration': '평균체류시간', 
+            'bounceRate': '이탈률'
+        })
+        df_published_all['체류시간_fmt'] = df_published_all['평균체류시간'].apply(format_duration)
+        df_published_all['발행일시'] = df_published_all['실발행일시']
+    else:
+        df_published_all = pd.DataFrame()
 
-    # 이번주 발행기사 전체 (기자별 분석용)
+    # 이번주 발행기사 전체 (기자별 분석용) - 크롤링 기준 마스터 데이터
     df_published_all_week = df_published_all if 'df_published_all' in locals() else pd.DataFrame()
+    
+    # 발행기사 수를 크롤링 기준 마스터 데이터(최대 10건)로 재계산
+    if not df_published_all_week.empty:
+        published_article_count = len(df_published_all_week)
     
     return (sel_uv, sel_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
             df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 

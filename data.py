@@ -507,15 +507,22 @@ def load_all_dashboard_data(selected_week):
         df_top10['체류시간_fmt'] = df_top10['평균체류시간'].apply(format_duration)
         df_top10['발행일시'] = df_top10['실발행일시']
         
-        # 24시간, 48시간 방문자 수 추가 (효율적인 방법: 한 번의 쿼리로 모든 기사 조회)
+        # 24시간, 48시간 방문자 수 추가 (주차 기간의 마지막 날짜 기준으로 계산)
+        # 주차 기간의 마지막 날짜를 기준으로 역산하여 계산 (전체방문자수보다 작아야 함)
+        e_dt_date = datetime.strptime(e_dt, '%Y-%m-%d').date()
         today = datetime.now().date()
-        yesterday = (datetime.now() - timedelta(days=1)).date()
-        two_days_ago = (datetime.now() - timedelta(days=2)).date()
+        # 주차 기간의 마지막 날짜와 오늘 중 작은 값 사용 (미래 날짜 방지)
+        period_end_date = min(e_dt_date, today)
         
-        # 24시간 방문자 수 (어제부터 오늘까지)
+        # 24시간 방문자 수: 주차 기간의 마지막 날짜부터 역산하여 1일 전까지
+        # (주차 기간 내에서만 계산)
+        period_end_24h_start = max(
+            (period_end_date - timedelta(days=1)),
+            datetime.strptime(s_dt, '%Y-%m-%d').date()
+        )
         df_24h_all = run_ga4_report(
-            yesterday.strftime('%Y-%m-%d'), 
-            today.strftime('%Y-%m-%d'),
+            period_end_24h_start.strftime('%Y-%m-%d'), 
+            period_end_date.strftime('%Y-%m-%d'),
             ['pagePath'],
             ['activeUsers'],
             order_by_metric='activeUsers',
@@ -527,10 +534,15 @@ def load_all_dashboard_data(selected_week):
                 path = row['pagePath']
                 visitor_24h[path] = int(row['activeUsers']) if pd.notna(row['activeUsers']) else 0
         
-        # 48시간 방문자 수 (2일 전부터 오늘까지)
+        # 48시간 방문자 수: 주차 기간의 마지막 날짜부터 역산하여 2일 전까지
+        # (주차 기간 내에서만 계산)
+        period_end_48h_start = max(
+            (period_end_date - timedelta(days=2)),
+            datetime.strptime(s_dt, '%Y-%m-%d').date()
+        )
         df_48h_all = run_ga4_report(
-            two_days_ago.strftime('%Y-%m-%d'), 
-            today.strftime('%Y-%m-%d'),
+            period_end_48h_start.strftime('%Y-%m-%d'), 
+            period_end_date.strftime('%Y-%m-%d'),
             ['pagePath'],
             ['activeUsers'],
             order_by_metric='activeUsers',
@@ -544,6 +556,14 @@ def load_all_dashboard_data(selected_week):
         
         df_top10['24시간방문자수'] = df_top10['경로'].map(visitor_24h).fillna(0)
         df_top10['48시간방문자수'] = df_top10['경로'].map(visitor_48h).fillna(0)
+        
+        # 검증: 24시간/48시간 방문자 수가 전체방문자수보다 크면 전체방문자수로 제한
+        df_top10['24시간방문자수'] = df_top10.apply(
+            lambda row: min(row['24시간방문자수'], row['전체방문자수']), axis=1
+        )
+        df_top10['48시간방문자수'] = df_top10.apply(
+            lambda row: min(row['48시간방문자수'], row['전체방문자수']), axis=1
+        )
         
         if 'newUsers' in df_top10.columns and '전체방문자수' in df_top10.columns:
             df_top10['신규방문자비율'] = df_top10.apply(
@@ -646,6 +666,14 @@ def load_all_dashboard_data(selected_week):
             # 24시간, 48시간 방문자 수 추가 (df_top10과 동일한 방식)
             df_published['24시간방문자수'] = df_published['경로'].map(visitor_24h).fillna(0)
             df_published['48시간방문자수'] = df_published['경로'].map(visitor_48h).fillna(0)
+            
+            # 검증: 24시간/48시간 방문자 수가 전체방문자수보다 크면 전체방문자수로 제한
+            df_published['24시간방문자수'] = df_published.apply(
+                lambda row: min(row['24시간방문자수'], row['전체방문자수']), axis=1
+            )
+            df_published['48시간방문자수'] = df_published.apply(
+                lambda row: min(row['48시간방문자수'], row['전체방문자수']), axis=1
+            )
             
             if 'newUsers' in df_published.columns and '전체방문자수' in df_published.columns:
                 df_published['신규방문자비율'] = df_published.apply(

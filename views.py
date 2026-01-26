@@ -307,7 +307,6 @@ def render_demo_region(df_region_curr, df_region_last):
         df_disp['이번주(%)'] = df_disp['비율_이번'].astype(str) + '%'
         df_disp['지난주(%)'] = df_disp['비율_지난'].astype(str) + '%'
         df_disp['변화(%p)'] = df_disp['변화(%p)'].apply(lambda x: f"{x:+.1f}%p")
-        # 스크롤 없이 전체 지역 나열
         st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True)
 
 # ----------------- 3. 방문자 특성 (연령/성별) -----------------

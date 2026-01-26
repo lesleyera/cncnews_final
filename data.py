@@ -697,41 +697,38 @@ def get_writers_df_real(df_target):
     #    AUTHOR_MAPPING_DATA는 {'본명': ..., '필명': ...} 리스트
     pen_to_real_map = {item['필명']: item['본명'] for item in AUTHOR_MAPPING_DATA}
     
-    if df_target.empty or '작성자' not in df_target.columns: return pd.DataFrame()
+    if df_target.empty or '작성자' not in df_target.columns: 
+        return pd.DataFrame(), pd.DataFrame()
 
     # 2. 크롤링된 데이터(df_target)의 '작성자'(필명) 컬럼을 기준으로 본명 매핑
-    #    매핑되지 않는 필명은 '미상' 대신 원래 필명을 본명으로 사용하거나 별도 처리가능. 
-    #    여기서는 필명을 그대로 유지(혹은 '미상')하고 진행.
     df_work = df_target.copy()
     df_work['본명_mapped'] = df_work['작성자'].map(pen_to_real_map).fillna(df_work['작성자'])
     
-    # 3. [기자별 집계]는 '필명(작성자)' 단위로 수행해야 views.py의 로직(필명 기준 필터링 등)과 호환됨.
-    #    따라서 GroupBy는 '작성자'(필명)로 수행하되, '본명' 컬럼을 보존해야 함.
-    writers = df_work.groupby(['작성자', '본명_mapped']).agg(
+    # 3-1. 본명 기준 집계: 본명으로 그룹화하여 합산
+    writers_by_real = df_work.groupby('본명_mapped').agg(
         기사수=('제목','count'), 
         총조회수=('전체조회수','sum'),
         좋아요=('좋아요', 'sum'),
         댓글=('댓글', 'sum')
     ).reset_index()
+    writers_by_real = writers_by_real.rename(columns={'본명_mapped': '작성자'})
+    writers_by_real['평균조회수'] = (writers_by_real['총조회수']/writers_by_real['기사수']).astype(int)
+    writers_by_real = writers_by_real.sort_values('총조회수', ascending=False)
+    writers_by_real['순위'] = range(1, len(writers_by_real)+1)
+    # 필명 컬럼 추가 (빈 값 또는 대표 필명)
+    writers_by_real['필명'] = ''
     
-    # 4. 정렬 (총조회수 내림차순)
-    writers = writers.sort_values('총조회수', ascending=False)
-    writers['순위'] = range(1, len(writers)+1)
+    # 3-2. 필명 기준 집계: 필명(작성자)으로 그룹화하여 합산
+    writers_by_pen = df_work.groupby('작성자').agg(
+        기사수=('제목','count'), 
+        총조회수=('전체조회수','sum'),
+        좋아요=('좋아요', 'sum'),
+        댓글=('댓글', 'sum')
+    ).reset_index()
+    writers_by_pen['본명_mapped'] = writers_by_pen['작성자'].map(pen_to_real_map).fillna(writers_by_pen['작성자'])
+    writers_by_pen = writers_by_pen.rename(columns={'작성자': '필명', '본명_mapped': '작성자'})
+    writers_by_pen['평균조회수'] = (writers_by_pen['총조회수']/writers_by_pen['기사수']).astype(int)
+    writers_by_pen = writers_by_pen.sort_values('총조회수', ascending=False)
+    writers_by_pen['순위'] = range(1, len(writers_by_pen)+1)
     
-    # 5. 평균조회수 계산
-    writers['평균조회수'] = (writers['총조회수']/writers['기사수']).astype(int)
-    
-    # 6. 컬럼명 조정 (views.py와의 호환성 유지)
-    #    views.py의 render_writer_real는 '작성자'를 본명으로, '필명'을 필명으로 출력하려고 시도함.
-    #    views.py의 render_writer_pen는 '필명'을 필명으로, '작성자'를 본명으로 출력하려고 시도함.
-    #    
-    #    따라서 반환하는 DataFrame의 컬럼을 다음과 같이 설정:
-    #    - '작성자': 본명 (Real Name)
-    #    - '필명': 필명 (Pen Name)
-    #    이렇게 하면 views.py에서:
-    #      - Tab 7(본명): 작성자(본명) | 필명(필명) -> OK
-    #      - Tab 8(필명): 필명(필명) | 본명(작성자) -> OK
-    
-    writers = writers.rename(columns={'작성자': '필명', '본명_mapped': '작성자'})
-    
-    return writers
+    return writers_by_real, writers_by_pen

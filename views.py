@@ -164,7 +164,7 @@ def render_demo_region(df_region_curr, df_region_last):
         df_change['비율_이번'] = (df_change['activeUsers_이번'] / total_c * 100).round(1) if total_c > 0 else 0
         df_change['비율_지난'] = (df_change['activeUsers_지난'] / total_l * 100).round(1) if total_l > 0 else 0
         df_change['변화(%p)'] = df_change['비율_이번'] - df_change['비율_지난']
-        
+        ㅁ
         df_norm = df_change[df_change['구분']!='기타'].sort_values('activeUsers_이번', ascending=False)
         df_oth = df_change[df_change['구분']=='기타']
         df_disp = pd.concat([df_norm, df_oth])
@@ -172,7 +172,8 @@ def render_demo_region(df_region_curr, df_region_last):
         df_disp['이번주(%)'] = df_disp['비율_이번'].astype(str) + '%'
         df_disp['지난주(%)'] = df_disp['비율_지난'].astype(str) + '%'
         df_disp['변화(%p)'] = df_disp['변화(%p)'].apply(lambda x: f"{x:+.1f}%p")
-        st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True)
+        # 스크롤 없이 전체 지역 나열
+        st.dataframe(df_disp[['구분', '이번주(%)', '지난주(%)', '변화(%p)']], use_container_width=True, hide_index=True, height=None)
 
 # ----------------- 3. 방문자 특성 (연령/성별) -----------------
 def render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last):
@@ -218,7 +219,7 @@ def render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_l
         st.markdown("<hr>", unsafe_allow_html=True)
 
 # ----------------- 4. Top 10 상세 -----------------
-def render_top10_detail(df_top10):
+def render_top10_detail(df_top10, df_published_top10=None):
     st.markdown('<div class="section-header-container"><div class="section-header">4. 최근 7일 조회수 TOP 10 기사 상세</div></div>', unsafe_allow_html=True)
     if not df_top10.empty:
         df_p4 = df_top10.copy()
@@ -236,6 +237,28 @@ def render_top10_detail(df_top10):
         })
         cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','좋아요','댓글']
         st.dataframe(df_p4_display[cols], use_container_width=True, hide_index=True)
+    
+    # 4-1. 최근 발행기사 기준
+    if df_published_top10 is not None and not df_published_top10.empty:
+        st.markdown('<div class="section-header-container"><div class="section-header">4-1. 최근 발행기사 기준</div></div>', unsafe_allow_html=True)
+        df_pub = df_published_top10.copy()
+        def safe_format_int(x):
+            try: return f"{int(float(x)):,}"
+            except: return str(x)
+        for c in ['전체조회수','전체방문자수','좋아요','댓글']: 
+            if c in df_pub.columns:
+                df_pub[c] = df_pub[c].apply(safe_format_int)
+        df_pub_display = df_pub.copy()
+        df_pub_display = df_pub_display.rename(columns={
+            '전체조회수': '최근 7일간 조회수',
+            '전체방문자수': '최근 7일간 방문자수',
+            '체류시간_fmt': '체류시간',
+            '최다유입': '최다 유입경로'
+        })
+        cols = ['순위','카테고리','세부카테고리','제목','작성자','발행일시','최근 7일간 조회수','최근 7일간 방문자수','신규방문자비율','최다 유입경로','체류시간','좋아요','댓글']
+        # 존재하는 컬럼만 선택
+        available_cols = [c for c in cols if c in df_pub_display.columns]
+        st.dataframe(df_pub_display[available_cols], use_container_width=True, hide_index=True)
 
 # ----------------- 5. Top 10 추이 -----------------
 def render_top10_trends(df_top10, df_top10_sources=None):
@@ -259,13 +282,22 @@ def render_top10_trends(df_top10, df_top10_sources=None):
         st.dataframe(df_p5[cols], use_container_width=True, hide_index=True)
         
         if df_top10_sources is not None and not df_top10_sources.empty:
-            path_to_title = dict(zip(df_top10['경로'], df_top10['제목']))
+            # df_top10의 순위 순서대로 정렬
+            path_to_rank = dict(zip(df_top10['경로'], df_top10['순위']))
             df_src = df_top10_sources.copy()
+            df_src['순위'] = df_src['pagePath'].map(path_to_rank).fillna(999)
+            
+            # 순위별로 정렬하고 top10만 필터링
+            df_src = df_src[df_src['순위'] <= 10].sort_values('순위')
+            
+            path_to_title = dict(zip(df_top10['경로'], df_top10['제목']))
             df_src['기사제목'] = df_src['pagePath'].map(path_to_title).fillna('기타')
             
             df_src['기사제목_short'] = df_src['기사제목'].apply(lambda x: x[:10] + '...' if len(str(x)) > 10 else str(x))
             
-            short_titles_ordered = [t[:10] + '...' if len(str(t)) > 10 else str(t) for t in df_top10['제목'].tolist()]
+            # 순위 순서대로 정렬 (1위부터 10위까지)
+            df_top10_sorted = df_top10.sort_values('순위')
+            short_titles_ordered = [t[:10] + '...' if len(str(t)) > 10 else str(t) for t in df_top10_sorted['제목'].tolist()]
             short_titles_ordered.reverse()
             
             fig = px.bar(
@@ -277,10 +309,10 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 title='기사별 유입경로 비중',
                 orientation='h',       
                 color_discrete_sequence=CHART_PALETTE,
-                hover_data={'top_detail': True, 'screenPageViews': True, '기사제목': True, '기사제목_short': False}
+                hover_data={'top_detail': True, 'screenPageViews': True, '기사제목': True, '기사제목_short': False, '순위': True}
             )
             
-            fig.update_traces(hovertemplate='<b>%{y}</b><br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x}<extra></extra>')
+            fig.update_traces(hovertemplate='<b>%{y}</b><br>순위: %{customdata[4]}위<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x}<extra></extra>', texttemplate='%{text:,}', textposition='outside')
             
             fig.update_layout(
                 plot_bgcolor='white',
@@ -335,20 +367,28 @@ def render_category(df_top10):
         
         # [수정] 각주 추가
         st.markdown("<div style='font-size: 0.85rem; color: #78909c; margin-top: 5px;'>* 평균조회수: 카테고리 전체 조회수 ÷ 카테고리 기사 수</div>", unsafe_allow_html=True)
+        
+        # 발행기사 수 반환 (카테고리별 기사 수 합계)
+        return total_main
+    return 0
 
-# ----------------- 7. 기자 (본명) -----------------
-def render_writer_real(writers_df):
-    st.markdown('<div class="section-header-container"><div class="section-header">7. 이번주 기자별 분석 (본명 기준)</div></div>', unsafe_allow_html=True)
+# ----------------- 7. 기자별 분석 -----------------
+def render_writer_analysis(writers_df):
+    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)
+    
+    # 7-1. 이번주 기자별 분석 (본명 기준)
+    st.markdown('<div class="sub-header">7-1. 이번주 기자별 분석 (본명 기준)</div>', unsafe_allow_html=True)
     if not writers_df.empty:
         disp_w = writers_df.copy()
         for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '작성자', '필명', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '본명', '필명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
         st.dataframe(disp_w, use_container_width=True, hide_index=True)
-
-# ----------------- 8. 기자 (필명) -----------------
-def render_writer_pen(writers_df):
-    st.markdown('<div class="section-header-container"><div class="section-header">8. 이번주 기자별 분석 (필명 기준)</div></div>', unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 7-2. 이번주 기자별 분석 (필명 기준)
+    st.markdown('<div class="sub-header">7-2. 이번주 기자별 분석 (필명 기준)</div>', unsafe_allow_html=True)
     if not writers_df.empty:
         df_pen = writers_df[writers_df['필명'] != ''].copy()
         if not df_pen.empty:

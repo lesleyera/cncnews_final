@@ -287,6 +287,8 @@ def load_all_dashboard_data(selected_week):
         df_daily = df_daily[df_daily['날짜_원본'].dt.date <= actual_end_date]
         df_daily['날짜'] = df_daily['날짜_원본'].dt.strftime('%m-%d')
         df_daily = df_daily.drop(columns=['날짜_원본'])
+    else:
+        df_daily = pd.DataFrame(columns=['날짜', 'UV', 'PV'])
     
     # 3. 3개월 추이
     def fetch_week_data(week_label, date_str):
@@ -310,7 +312,7 @@ def load_all_dashboard_data(selected_week):
         futures = [executor.submit(fetch_week_data, wl, dstr) for wl, dstr in list(WEEK_MAP.items())[:12]]
         results = [f.result() for f in concurrent.futures.as_completed(futures) if f.result()]
     
-    df_weekly = pd.DataFrame(results)
+    df_weekly = pd.DataFrame(results) if results else pd.DataFrame()
     if not df_weekly.empty:
         def extract_week_num(x):
             match = re.search(r'\d+', str(x))
@@ -394,17 +396,23 @@ def load_all_dashboard_data(selected_week):
         if 'google' in s: return '구글'
         return '기타'
     df_t_raw = run_ga4_report(s_dt, e_dt, ["sessionSource"], ["screenPageViews"])
-    df_t_raw['유입경로'] = df_t_raw['sessionSource'].apply(map_source)
-    df_traffic_curr = df_t_raw.groupby('유입경로')['screenPageViews'].sum().reset_index().rename(columns={'screenPageViews':'조회수'})
+    if not df_t_raw.empty:
+        df_t_raw['유입경로'] = df_t_raw['sessionSource'].apply(map_source)
+        df_traffic_curr = df_t_raw.groupby('유입경로')['screenPageViews'].sum().reset_index().rename(columns={'screenPageViews':'조회수'})
+    else:
+        df_traffic_curr = pd.DataFrame(columns=['유입경로', '조회수'])
     
     search_engines = ['네이버', '구글', '다음']
-    search_pv = df_traffic_curr[df_traffic_curr['유입경로'].isin(search_engines)]['조회수'].sum()
-    total_pv_traffic = df_traffic_curr['조회수'].sum()
+    search_pv = df_traffic_curr[df_traffic_curr['유입경로'].isin(search_engines)]['조회수'].sum() if not df_traffic_curr.empty else 0
+    total_pv_traffic = df_traffic_curr['조회수'].sum() if not df_traffic_curr.empty else 0
     search_inflow_ratio = round((search_pv / total_pv_traffic * 100), 1) if total_pv_traffic > 0 else 0
     
     df_tl_raw = run_ga4_report(ls_dt, le_dt, ["sessionSource"], ["screenPageViews"])
-    df_tl_raw['유입경로'] = df_tl_raw['sessionSource'].apply(map_source)
-    df_traffic_last = df_tl_raw.groupby('유입경로')['screenPageViews'].sum().reset_index().rename(columns={'screenPageViews':'조회수'})
+    if not df_tl_raw.empty:
+        df_tl_raw['유입경로'] = df_tl_raw['sessionSource'].apply(map_source)
+        df_traffic_last = df_tl_raw.groupby('유입경로')['screenPageViews'].sum().reset_index().rename(columns={'screenPageViews':'조회수'})
+    else:
+        df_traffic_last = pd.DataFrame(columns=['유입경로', '조회수'])
 
     # 5. 방문자 특성
     def clean_and_group(df, col_name):

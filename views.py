@@ -355,15 +355,72 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             # y축 순서 설정 - 순위별로 내려가게 (1위가 위, 10위가 아래)
             fig.update_yaxes(categoryorder='array', categoryarray=short_titles_ordered)
             
-            # y축 레이블에 마우스를 올렸을 때 전체 제목 표시를 위한 커스텀 JavaScript
-            # 전체 제목 리스트를 JavaScript에 전달
+            # y축 레이블에 마우스를 올렸을 때 노란 배경의 커스텀 툴팁 표시
             full_titles_js = str(full_titles_ordered).replace("'", "\\'")
             short_titles_js = str(short_titles_ordered).replace("'", "\\'")
             
             yaxis_hover_script = f"""
+            <style>
+            .yaxis-tooltip {{
+                position: absolute;
+                background-color: #ffeb3b;
+                color: #000;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 600;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                z-index: 10000;
+                pointer-events: none;
+                max-width: 400px;
+                word-wrap: break-word;
+                border: 1px solid #fbc02d;
+                display: none;
+            }}
+            </style>
             <script>
             (function() {{
-                function addTitleAttributes() {{
+                let tooltip = null;
+                
+                function createTooltip() {{
+                    if (!tooltip) {{
+                        tooltip = document.createElement('div');
+                        tooltip.className = 'yaxis-tooltip';
+                        document.body.appendChild(tooltip);
+                    }}
+                    return tooltip;
+                }}
+                
+                function showTooltip(e, text) {{
+                    const tooltip = createTooltip();
+                    tooltip.textContent = text;
+                    tooltip.style.display = 'block';
+                    
+                    const x = e.clientX + 10;
+                    const y = e.clientY + 10;
+                    
+                    tooltip.style.left = x + 'px';
+                    tooltip.style.top = y + 'px';
+                    
+                    // 화면 밖으로 나가지 않도록 조정
+                    setTimeout(() => {{
+                        const rect = tooltip.getBoundingClientRect();
+                        if (rect.right > window.innerWidth) {{
+                            tooltip.style.left = (e.clientX - rect.width - 10) + 'px';
+                        }}
+                        if (rect.bottom > window.innerHeight) {{
+                            tooltip.style.top = (e.clientY - rect.height - 10) + 'px';
+                        }}
+                    }}, 0);
+                }}
+                
+                function hideTooltip() {{
+                    if (tooltip) {{
+                        tooltip.style.display = 'none';
+                    }}
+                }}
+                
+                function addHoverEvents() {{
                     const yAxisLabels = document.querySelectorAll('.ytick text');
                     const fullTitles = {full_titles_js};
                     const shortTitles = {short_titles_js};
@@ -372,21 +429,47 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                         const shortTitle = label.textContent.trim();
                         const titleIndex = shortTitles.indexOf(shortTitle);
                         if (titleIndex >= 0 && titleIndex < fullTitles.length) {{
-                            label.setAttribute('title', fullTitles[titleIndex]);
+                            const fullTitle = fullTitles[titleIndex];
+                            
                             label.style.cursor = 'help';
+                            
+                            label.addEventListener('mouseenter', function(e) {{
+                                showTooltip(e, fullTitle);
+                            }});
+                            
+                            label.addEventListener('mouseleave', function() {{
+                                hideTooltip();
+                            }});
+                            
+                            label.addEventListener('mousemove', function(e) {{
+                                if (tooltip && tooltip.style.display === 'block') {{
+                                    const x = e.clientX + 10;
+                                    const y = e.clientY + 10;
+                                    tooltip.style.left = x + 'px';
+                                    tooltip.style.top = y + 'px';
+                                    
+                                    setTimeout(() => {{
+                                        const rect = tooltip.getBoundingClientRect();
+                                        if (rect.right > window.innerWidth) {{
+                                            tooltip.style.left = (e.clientX - rect.width - 10) + 'px';
+                                        }}
+                                        if (rect.bottom > window.innerHeight) {{
+                                            tooltip.style.top = (e.clientY - rect.height - 10) + 'px';
+                                        }}
+                                    }}, 0);
+                                }}
+                            }});
                         }}
                     }});
                 }}
                 
                 // 차트가 렌더링된 후 실행
-                setTimeout(addTitleAttributes, 1500);
+                setTimeout(addHoverEvents, 1500);
                 
                 // Plotly 이벤트 리스너 추가
-                if (typeof window.Plotly !== 'undefined') {{
-                    const plotDiv = document.querySelector('[data-testid="stPlotlyChart"]');
-                    if (plotDiv) {{
-                        plotDiv.on('plotly_afterplot', addTitleAttributes);
-                    }}
+                const plotDiv = document.querySelector('[data-testid="stPlotlyChart"]');
+                if (plotDiv) {{
+                    plotDiv.addEventListener('plotly_afterplot', addHoverEvents);
                 }}
             }})();
             </script>

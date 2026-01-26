@@ -46,8 +46,26 @@ with c2:
         if col_btn1.button("🔙 대시보드로 복귀", type="secondary"):
             st.session_state['print_mode'] = False
             st.rerun()
-        if col_btn2.button("🖨️ 인쇄 실행", type="primary"):
-            st.components.v1.html("<script>window.parent.print();</script>", height=0, width=0)
+        if col_btn2.button("📄 PDF로 저장", type="primary"):
+            # PDF 저장을 위한 JavaScript
+            pdf_save_script = """
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <script>
+            (function() {
+                const element = document.querySelector('.print-preview-layout') || document.body;
+                const opt = {
+                    margin: [15, 10, 15, 10],
+                    filename: '쿡앤셰프_주간성과보고서.pdf',
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                };
+                
+                html2pdf().set(opt).from(element).save();
+            })();
+            </script>
+            """
+            st.components.v1.html(pdf_save_script, height=0, width=0)
     else:
         if col_btn2.button("🖨️ 인쇄 미리보기", type="primary"):
             st.session_state['print_mode'] = True

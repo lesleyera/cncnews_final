@@ -80,7 +80,14 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     
     cols = st.columns(9)
     for i, (l, v, u) in enumerate(kpis):
-        v_f = f"{v:,}" if isinstance(v, (int, np.integer, float)) and l not in ["방문자당 페이지뷰", "신규 방문자 비율", "검색 유입 비율"] else str(v)
+        # 딕셔너리나 리스트인 경우 0으로 처리 (오류 방지)
+        if isinstance(v, (dict, list)):
+            v = 0
+        # 숫자 타입 확인 및 포맷팅
+        if isinstance(v, (int, np.integer, float)) and l not in ["방문자당 페이지뷰", "신규 방문자 비율", "검색 유입 비율"]:
+            v_f = f"{v:,}"
+        else:
+            v_f = str(v)
         cols[i].markdown(f'<div class="kpi-container"><div class="kpi-label">{l}</div><div class="kpi-value">{v_f}<span class="kpi-unit">{u}</span></div></div>', unsafe_allow_html=True)
     
     # 각 지표 산식 각주 추가

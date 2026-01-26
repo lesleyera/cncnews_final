@@ -147,6 +147,37 @@ def crawl_single_article_cached(url_path):
         reg_date = "-"
         author = "관리자"
         cat, subcat = "뉴스", "이슈"
+        title = ""
+
+        # ---------------------------------------------------------
+        # 0. 제목 추출
+        # ---------------------------------------------------------
+        # [Priority 1] h3 태그에서 제목 추출
+        title_elem = soup.select_one('h3')
+        if title_elem:
+            title = title_elem.get_text(strip=True)
+        
+        # [Priority 2] .viewTitle 섹션에서 제목 추출
+        if not title:
+            view_title_section = soup.select_one('.viewTitle')
+            if view_title_section:
+                h3_in_view = view_title_section.select_one('h3')
+                if h3_in_view:
+                    title = h3_in_view.get_text(strip=True)
+        
+        # [Priority 3] meta 태그에서 제목 추출
+        if not title:
+            meta_title = soup.select_one('meta[property="og:title"]') or soup.select_one('title')
+            if meta_title:
+                title = meta_title.get('content', '') or meta_title.get_text(strip=True)
+        
+        # 제목이 카테고리명(쿡앤셰프, Cook&Chef 등)만 있는 경우 제거
+        if title in ['쿡앤셰프', 'Cook&Chef', '쿡앤셰프(Cook&Chef)']:
+            title = ""
+        
+        # Fallback: 제목이 없으면 빈 문자열
+        if not title:
+            title = ""
 
         # ---------------------------------------------------------
         # 1. 작성자 & 발행일시 추출
@@ -238,9 +269,9 @@ def crawl_single_article_cached(url_path):
         comments_elem = soup.select_one('.comment-count')
         comments = int(comments_elem.text.replace(',', '').strip()) if comments_elem and comments_elem.text and comments_elem.text.replace(',', '').strip().isdigit() else 0
         
-        return (author, likes, comments, cat, subcat, reg_date)
+        return (author, likes, comments, cat, subcat, reg_date, title)
     except: 
-        return ("관리자", 0, 0, "뉴스", "이슈", "-")
+        return ("관리자", 0, 0, "뉴스", "이슈", "-", "")
 
 @st.cache_data(ttl=3600, show_spinner="데이터 불러오는 중...")
 def load_all_dashboard_data(selected_week):
@@ -591,10 +622,14 @@ def load_all_dashboard_data(selected_week):
                     try:
                         result = future.result(timeout=3.0)
                         scraped_data_dict[idx] = result
-                    except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-")
+                    except: scraped_data_dict[idx] = ("관리자", 0, 0, "뉴스", "이슈", "-", "")
         
         scraped_data = [scraped_data_dict[i] for i in range(len(paths_normalized))] if paths_normalized else []
-        auths, lks, cmts, cats, subcats, reg_dates = zip(*scraped_data) if scraped_data else ([], [], [], [], [], [])
+        if scraped_data:
+            # 크롤링 결과에서 제목도 추출
+            auths, lks, cmts, cats, subcats, reg_dates, titles = zip(*scraped_data)
+        else:
+            auths, lks, cmts, cats, subcats, reg_dates, titles = ([], [], [], [], [], [], [])
         
         # 6-3. 데이터 병합 및 정리
         # 정규화된 경로로 크롤링 (원본 경로가 아닌 정규화된 경로 사용)
@@ -604,6 +639,14 @@ def load_all_dashboard_data(selected_week):
         df_sorted['카테고리'] = list(cats) if cats else ["뉴스"] * len(df_sorted)
         df_sorted['세부카테고리'] = list(subcats) if subcats else ["이슈"] * len(df_sorted)
         df_sorted['실발행일시'] = list(reg_dates) if reg_dates else ["-"] * len(df_sorted)
+        # 크롤링한 제목이 있으면 우선 사용
+        if titles:
+            df_sorted['크롤링제목'] = list(titles)
+            df_sorted['pageTitle'] = df_sorted.apply(
+                lambda row: row['크롤링제목'] if pd.notna(row.get('크롤링제목', '')) and row.get('크롤링제목', '') != '' else row.get('pageTitle', ''),
+                axis=1
+            )
+            df_sorted = df_sorted.drop(columns=['크롤링제목'])
         
         def is_excluded_author(row):
             a = str(row['작성자']).lower().replace(' ', '')
@@ -769,6 +812,7 @@ def load_all_dashboard_data(selected_week):
                     # 발행일시가 해당 주차 기간 내에 있는 경우만 포함 (발행일시가 없으면 포함)
                     if reg_date_obj is None or (start_date_obj <= reg_date_obj <= end_date_obj):
                         # 크롤링 결과를 마스터 데이터로 저장 (GA4 데이터는 나중에 Left Join)
+                        title = crawl_result[6] if len(crawl_result) > 6 else ""
                         master_row = {
                             'pagePath_normalized': normalized_path,
                             'article_id': extract_article_id(normalized_path),
@@ -777,7 +821,8 @@ def load_all_dashboard_data(selected_week):
                             '댓글': crawl_result[2] if len(crawl_result) > 2 else 0,
                             '카테고리': crawl_result[3] if len(crawl_result) > 3 else "뉴스",
                             '세부카테고리': crawl_result[4] if len(crawl_result) > 4 else "이슈",
-                            '실발행일시': reg_date_str
+                            '실발행일시': reg_date_str,
+                            '제목': title
                         }
                         published_articles_master.append(master_row)
                 except:
@@ -841,7 +886,11 @@ def load_all_dashboard_data(selected_week):
             df_published_all[col] = df_published_all[col].fillna(0)
         for col in ['userEngagementDuration', 'bounceRate']:
             df_published_all[col] = df_published_all[col].fillna(0.0)
-        df_published_all['pageTitle'] = df_published_all['pageTitle'].fillna('')
+        # 크롤링한 제목이 있으면 우선 사용, 없으면 GA4 제목 사용
+        df_published_all['pageTitle'] = df_published_all.apply(
+            lambda row: row['제목'] if pd.notna(row.get('제목', '')) and row.get('제목', '') != '' else (row.get('pageTitle', '') or ''),
+            axis=1
+        )
         
         # 조회수로 정렬하고 상위 10개 선택 (df_published_top10용)
         df_published = df_published_all.copy().sort_values('screenPageViews', ascending=False).head(10)

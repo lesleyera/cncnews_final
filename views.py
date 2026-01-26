@@ -126,12 +126,30 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
                 uv_hover = [f"주차: {row['주차']}<br>UV: {row['UV']:,}" for idx, row in df_weekly.iterrows()]
                 pv_hover = [f"주차: {row['주차']}<br>PV: {row['PV']:,}" for idx, row in df_weekly.iterrows()]
             
+            # 3달 간 평균 계산 (최근 주차 제외)
+            df_weekly_except_last = df_weekly.iloc[:-1] if len(df_weekly) > 1 else df_weekly
+            avg_uv = df_weekly_except_last['UV'].mean() if len(df_weekly_except_last) > 0 else df_weekly['UV'].mean()
+            avg_pv = df_weekly_except_last['PV'].mean() if len(df_weekly_except_last) > 0 else df_weekly['PV'].mean()
+            
+            # 평균 미만인 막대는 주황색으로 표시 (최근 주차는 제외)
+            uv_colors = []
+            pv_colors = []
+            for idx, row in df_weekly.iterrows():
+                # 마지막 주차는 원래 색상 유지
+                if idx == df_weekly.index[-1]:
+                    uv_colors.append(COLOR_GREY)
+                    pv_colors.append(COLOR_NAVY)
+                else:
+                    # 평균 미만이면 주황색
+                    uv_colors.append('orange' if row['UV'] < avg_uv else COLOR_GREY)
+                    pv_colors.append('orange' if row['PV'] < avg_pv else COLOR_NAVY)
+            
             fig2 = go.Figure()
             fig2.add_trace(go.Bar(
                 x=df_weekly['주차'], 
                 y=df_weekly['UV'], 
                 name='UV', 
-                marker_color=COLOR_GREY,
+                marker_color=uv_colors,
                 hovertemplate='%{hovertext}<extra></extra>',
                 hovertext=uv_hover
             ))
@@ -139,90 +157,9 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
                 x=df_weekly['주차'], 
                 y=df_weekly['PV'], 
                 name='PV', 
-                marker_color=COLOR_NAVY,
+                marker_color=pv_colors,
                 hovertemplate='%{hovertext}<extra></extra>',
                 hovertext=pv_hover
-            ))
-            
-            # 3달 간 평균 계산 및 붉은 점선 표시
-            avg_uv = df_weekly['UV'].mean()
-            avg_pv = df_weekly['PV'].mean()
-            
-            fig2.add_trace(go.Scatter(
-                x=df_weekly['주차'], 
-                y=[avg_uv] * len(df_weekly), 
-                name='UV 평균', 
-                mode='lines',
-                line=dict(color='red', width=2, dash='dot'),
-                hovertemplate='UV 평균: %{y:,.0f}<extra></extra>'
-            ))
-            
-            fig2.add_trace(go.Scatter(
-                x=df_weekly['주차'], 
-                y=[avg_pv] * len(df_weekly), 
-                name='PV 평균', 
-                mode='lines',
-                line=dict(color='red', width=2, dash='dot'),
-                hovertemplate='PV 평균: %{y:,.0f}<extra></extra>'
-            ))
-            
-            # UV, PV 최대값, 최소값 찾기
-            max_uv_idx = df_weekly['UV'].idxmax()
-            min_uv_idx = df_weekly['UV'].idxmin()
-            max_pv_idx = df_weekly['PV'].idxmax()
-            min_pv_idx = df_weekly['PV'].idxmin()
-            
-            max_uv_week = df_weekly.loc[max_uv_idx, '주차']
-            min_uv_week = df_weekly.loc[min_uv_idx, '주차']
-            max_pv_week = df_weekly.loc[max_pv_idx, '주차']
-            min_pv_week = df_weekly.loc[min_pv_idx, '주차']
-            
-            max_uv_value = df_weekly.loc[max_uv_idx, 'UV']
-            min_uv_value = df_weekly.loc[min_uv_idx, 'UV']
-            max_pv_value = df_weekly.loc[max_pv_idx, 'PV']
-            min_pv_value = df_weekly.loc[min_pv_idx, 'PV']
-            
-            # 최대값, 최소값에 주황색 주석 추가
-            annotations = []
-            
-            # UV 최대값 (주황색)
-            annotations.append(dict(
-                x=max_uv_week, y=max_uv_value,
-                text=f"{max_uv_value:,}",
-                showarrow=True, arrowhead=2, arrowcolor='orange',
-                font=dict(color='orange', size=11, family='Pretendard'),
-                bgcolor='white', bordercolor='orange', borderwidth=1,
-                ax=0, ay=-30
-            ))
-            
-            # UV 최소값 (주황색)
-            annotations.append(dict(
-                x=min_uv_week, y=min_uv_value,
-                text=f"{min_uv_value:,}",
-                showarrow=True, arrowhead=2, arrowcolor='orange',
-                font=dict(color='orange', size=11, family='Pretendard'),
-                bgcolor='white', bordercolor='orange', borderwidth=1,
-                ax=0, ay=30
-            ))
-            
-            # PV 최대값 (주황색)
-            annotations.append(dict(
-                x=max_pv_week, y=max_pv_value,
-                text=f"{max_pv_value:,}",
-                showarrow=True, arrowhead=2, arrowcolor='orange',
-                font=dict(color='orange', size=11, family='Pretendard'),
-                bgcolor='white', bordercolor='orange', borderwidth=1,
-                ax=0, ay=-30
-            ))
-            
-            # PV 최소값 (주황색)
-            annotations.append(dict(
-                x=min_pv_week, y=min_pv_value,
-                text=f"{min_pv_value:,}",
-                showarrow=True, arrowhead=2, arrowcolor='orange',
-                font=dict(color='orange', size=11, family='Pretendard'),
-                bgcolor='white', bordercolor='orange', borderwidth=1,
-                ax=0, ay=30
             ))
             
             week_labels = df_weekly['주차'].tolist()
@@ -243,8 +180,7 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
                 plot_bgcolor='white', 
                 margin=dict(t=30), 
                 yaxis=dict(tickformat=","), 
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                annotations=annotations
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             st.plotly_chart(fig2, use_container_width=True, key="summary_weekly_chart")
 

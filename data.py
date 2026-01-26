@@ -993,32 +993,56 @@ def get_writers_df_real(df_target):
 
     # 2. 크롤링된 데이터(df_target)의 '작성자'(필명) 컬럼을 기준으로 본명 매핑
     df_work = df_target.copy()
+    
+    # '제목' 컬럼이 없으면 임시 컬럼 생성 (기사 수 카운트용)
+    if '제목' not in df_work.columns:
+        df_work['제목'] = df_work.index  # 임시로 인덱스를 사용
+    
     df_work['본명_mapped'] = df_work['작성자'].map(pen_to_real_map).fillna(df_work['작성자'])
     
     # 3-1. 본명 기준 집계: 본명으로 그룹화하여 합산
-    writers_by_real = df_work.groupby('본명_mapped').agg(
-        기사수=('제목','count'), 
-        총조회수=('전체조회수','sum'),
-        좋아요=('좋아요', 'sum'),
-        댓글=('댓글', 'sum')
-    ).reset_index()
+    agg_dict = {
+        '기사수': ('제목', 'count')
+    }
+    
+    if '전체조회수' in df_work.columns:
+        agg_dict['총조회수'] = ('전체조회수', 'sum')
+    if '좋아요' in df_work.columns:
+        agg_dict['좋아요'] = ('좋아요', 'sum')
+    if '댓글' in df_work.columns:
+        agg_dict['댓글'] = ('댓글', 'sum')
+    
+    writers_by_real = df_work.groupby('본명_mapped').agg(agg_dict).reset_index()
     writers_by_real = writers_by_real.rename(columns={'본명_mapped': '작성자'})
-    writers_by_real['평균조회수'] = (writers_by_real['총조회수']/writers_by_real['기사수']).astype(int)
+    
+    # 컬럼이 없을 경우 기본값 설정
+    if '총조회수' not in writers_by_real.columns:
+        writers_by_real['총조회수'] = 0
+    if '좋아요' not in writers_by_real.columns:
+        writers_by_real['좋아요'] = 0
+    if '댓글' not in writers_by_real.columns:
+        writers_by_real['댓글'] = 0
+    
+    writers_by_real['평균조회수'] = (writers_by_real['총조회수']/writers_by_real['기사수']).astype(int) if writers_by_real['기사수'].sum() > 0 else 0
     writers_by_real = writers_by_real.sort_values('총조회수', ascending=False)
     writers_by_real['순위'] = range(1, len(writers_by_real)+1)
     # 필명 컬럼 추가 (빈 값 또는 대표 필명)
     writers_by_real['필명'] = ''
     
     # 3-2. 필명 기준 집계: 필명(작성자)으로 그룹화하여 합산
-    writers_by_pen = df_work.groupby('작성자').agg(
-        기사수=('제목','count'), 
-        총조회수=('전체조회수','sum'),
-        좋아요=('좋아요', 'sum'),
-        댓글=('댓글', 'sum')
-    ).reset_index()
+    writers_by_pen = df_work.groupby('작성자').agg(agg_dict).reset_index()
     writers_by_pen['본명_mapped'] = writers_by_pen['작성자'].map(pen_to_real_map).fillna(writers_by_pen['작성자'])
     writers_by_pen = writers_by_pen.rename(columns={'작성자': '필명', '본명_mapped': '작성자'})
-    writers_by_pen['평균조회수'] = (writers_by_pen['총조회수']/writers_by_pen['기사수']).astype(int)
+    
+    # 컬럼이 없을 경우 기본값 설정
+    if '총조회수' not in writers_by_pen.columns:
+        writers_by_pen['총조회수'] = 0
+    if '좋아요' not in writers_by_pen.columns:
+        writers_by_pen['좋아요'] = 0
+    if '댓글' not in writers_by_pen.columns:
+        writers_by_pen['댓글'] = 0
+    
+    writers_by_pen['평균조회수'] = (writers_by_pen['총조회수']/writers_by_pen['기사수']).astype(int) if writers_by_pen['기사수'].sum() > 0 else 0
     writers_by_pen = writers_by_pen.sort_values('총조회수', ascending=False)
     writers_by_pen['순위'] = range(1, len(writers_by_pen)+1)
     

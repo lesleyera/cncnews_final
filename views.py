@@ -650,20 +650,27 @@ def render_category(df_published_all):
     if not df_published_all.empty:
         df_real = df_published_all.copy()
         
-        # 제목 컬럼이 없으면 경고 (data.py에서 이미 처리했으므로 여기서는 확인만)
-        if '제목' not in df_real.columns:
-            st.warning("카테고리 분석에 필요한 제목 데이터가 없습니다.")
+        # 기사 수 카운트용 컬럼 결정 (경로 우선, 없으면 제목)
+        count_column = '경로' if '경로' in df_real.columns else ('제목' if '제목' in df_real.columns else None)
+        
+        if count_column is None:
+            st.warning("카테고리 분석에 필요한 데이터가 없습니다.")
             return
         
         # 메인 카테고리
-        cat_main = df_real.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
-        total_main = cat_main['기사수'].sum()
-        # [수정] 기사수 (비중%) 형태로 병합
-        cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
+        agg_dict = {'기사수': (count_column, 'count')}
+        if '전체조회수' in df_real.columns:
+            agg_dict['전체조회수'] = ('전체조회수', 'sum')
+        
+        cat_main = df_real.groupby('카테고리').agg(agg_dict).reset_index()
         
         # 전체조회수 컬럼이 없을 경우 기본값 설정
         if '전체조회수' not in cat_main.columns:
             cat_main['전체조회수'] = 0
+        
+        total_main = cat_main['기사수'].sum()
+        # [수정] 기사수 (비중%) 형태로 병합
+        cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
         
         cat_main['전체조회수'] = pd.to_numeric(cat_main['전체조회수'], errors='coerce').fillna(0)
         cat_main['기사수_num'] = cat_main['기사수'].apply(lambda x: int(x.split('(')[0])) # 차트용 숫자 추출

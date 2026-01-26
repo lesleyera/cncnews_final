@@ -78,13 +78,13 @@ st.markdown(f'<div class="period-info">📅 조회 기간: {WEEK_MAP[selected_we
 st.markdown(f"<div class='update-time'>최종 집계: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>", unsafe_allow_html=True)
 
 # 데이터 로드
-# [수정] data.py에서 반환하는 published_article_count, df_published_top10 추가 수신 (총 20개 항목)
+# [수정] data.py에서 반환하는 published_article_count, df_published_top10, df_published_all_week 추가 수신 (총 21개 항목)
 (cur_uv, cur_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
  df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
- df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, published_article_count, df_top10_sources, df_published_top10) = data.load_all_dashboard_data(selected_week)
+ df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, published_article_count, df_top10_sources, df_published_top10, df_published_all_week) = data.load_all_dashboard_data(selected_week)
 
-# 기자별 데이터 생성 (본명 기준, 필명 기준)
-writers_df_real, writers_df_pen = data.get_writers_df_real(df_top10)
+# 기자별 데이터 생성 (본명 기준, 필명 기준) - 이번주 발행기사 전체 사용
+writers_df_real, writers_df_pen = data.get_writers_df_real(df_published_all_week if not df_published_all_week.empty else df_top10)
 
 # 발행기사 수는 6. 카테고리의 발행기사수 합으로 정의 (나중에 render_category에서 계산)
 # 초기값은 data.py에서 계산한 값 사용

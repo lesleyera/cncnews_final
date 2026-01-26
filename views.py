@@ -355,6 +355,11 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             full_titles_ordered = df_top10_sorted['제목'].tolist()
             
             # 정규화된 조회수 사용 (위의 표의 조회수 기준)
+            # custom_data에 필요한 정보 포함 (클릭 이벤트용)
+            custom_data_cols = ['top_detail', '기사제목', '순위', 'total_pv_from_top10', '발행일시', '작성자', 'page_url']
+            # 존재하는 컬럼만 선택
+            available_custom_cols = [col for col in custom_data_cols if col in df_src.columns]
+            
             fig = px.bar(
                 df_src, 
                 x='screenPageViews_normalized',   
@@ -364,13 +369,15 @@ def render_top10_trends(df_top10, df_top10_sources=None):
                 title='기사별 유입경로 비중',
                 orientation='h',       
                 color_discrete_sequence=CHART_PALETTE,
-                hover_data={'top_detail': True, 'screenPageViews_normalized': True, '기사제목': True, '기사제목_short': False, '순위': True, 'total_pv_from_top10': True, '발행일시': True, '작성자': True, 'page_url': True}
+                custom_data=available_custom_cols
             )
             
             # hover 템플릿 수정 - 전체 제목을 맨 위에 명확히 표시
-            # customdata: [top_detail, screenPageViews_normalized, 기사제목, 순위, total_pv_from_top10, 발행일시, 작성자, page_url]
+            # customdata 인덱스: [top_detail(0), 기사제목(1), 순위(2), total_pv_from_top10(3), 발행일시(4), 작성자(5), page_url(6)]
+            hover_template = '<b>전체 제목: %{customdata[1]}</b><br>순위: %{customdata[2]}위<br>작성자: %{customdata[5]}<br>발행일시: %{customdata[4]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[3]:,.0f}<extra></extra>'
+            
             fig.update_traces(
-                hovertemplate='<b>전체 제목: %{customdata[2]}</b><br>순위: %{customdata[3]}위<br>작성자: %{customdata[6]}<br>발행일시: %{customdata[5]}<br>유입경로: %{legendgroup}<br>상세경로: %{customdata[0]}<br>조회수: %{x:,.0f}<br>전체조회수: %{customdata[4]:,.0f}<extra></extra>', 
+                hovertemplate=hover_template, 
                 texttemplate='%{text:,}', 
                 textposition='outside',
                 hoverlabel=dict(bgcolor="white", font_size=12, font_family="Pretendard")

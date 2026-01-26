@@ -514,14 +514,9 @@ def load_all_dashboard_data(selected_week):
         # 주차 기간의 마지막 날짜와 오늘 중 작은 값 사용 (미래 날짜 방지)
         period_end_date = min(e_dt_date, today)
         
-        # 24시간 방문자 수: 주차 기간의 마지막 날짜부터 역산하여 1일 전까지
-        # (주차 기간 내에서만 계산)
-        period_end_24h_start = max(
-            (period_end_date - timedelta(days=1)),
-            datetime.strptime(s_dt, '%Y-%m-%d').date()
-        )
+        # 24시간 방문자 수: 마지막 날 하루만 (period_end_date 하루)
         df_24h_all = run_ga4_report(
-            period_end_24h_start.strftime('%Y-%m-%d'), 
+            period_end_date.strftime('%Y-%m-%d'), 
             period_end_date.strftime('%Y-%m-%d'),
             ['pagePath'],
             ['activeUsers'],
@@ -534,10 +529,10 @@ def load_all_dashboard_data(selected_week):
                 path = row['pagePath']
                 visitor_24h[path] = int(row['activeUsers']) if pd.notna(row['activeUsers']) else 0
         
-        # 48시간 방문자 수: 주차 기간의 마지막 날짜부터 역산하여 2일 전까지
+        # 48시간 방문자 수: 마지막 날 + 그 전날 (2일치)
         # (주차 기간 내에서만 계산)
         period_end_48h_start = max(
-            (period_end_date - timedelta(days=2)),
+            (period_end_date - timedelta(days=1)),
             datetime.strptime(s_dt, '%Y-%m-%d').date()
         )
         df_48h_all = run_ga4_report(

@@ -637,9 +637,20 @@ def render_top10_trends(df_top10, df_top10_sources=None):
 def render_category(df_published_all):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
     if not df_published_all.empty:
-        df_real = df_published_all
+        df_real = df_published_all.copy()
+        
+        # 기사 수 카운트용 컬럼 결정
+        count_column = '제목' if '제목' in df_real.columns else ('경로' if '경로' in df_real.columns else None)
+        if count_column is None:
+            df_real['_count'] = 1
+            count_column = '_count'
+        
         # 메인 카테고리
-        cat_main = df_real.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
+        agg_dict = {'기사수': (count_column, 'count')}
+        if '전체조회수' in df_real.columns:
+            agg_dict['전체조회수'] = ('전체조회수', 'sum')
+        
+        cat_main = df_real.groupby('카테고리').agg(agg_dict).reset_index()
         total_main = cat_main['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
@@ -657,7 +668,7 @@ def render_category(df_published_all):
 
         # 세부 카테고리
         st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
+        cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(agg_dict).reset_index()
         total_sub = cat_sub['기사수'].sum()
         # [수정] 기사수 (비중%) 형태로 병합
         cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)

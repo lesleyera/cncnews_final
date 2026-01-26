@@ -65,10 +65,8 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     st.markdown('<div class="section-header-container first-section"><div class="section-header">1. 주간 전체 성과 요약</div></div>', unsafe_allow_html=True)
     pv_per_user = round(cur_pv/cur_uv, 1) if cur_uv > 0 else 0
     
-    # 실시간 지표를 상단에 배치
+    # 원래 지표 (24시간/48시간 제외)
     kpis = [
-        ("24시간<br>방문자수", visitor_24h, "명"),
-        ("48시간<br>방문자수", visitor_48h, "명"),
         ("활성 기사 수", active_article_count, "건"),
         ("발행 기사 수", published_article_count, "건"),
         ("지난 7일 간<br>조회수(PV)", cur_pv, "건"),
@@ -78,7 +76,7 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
         ("검색 유입 비율", search_ratio, "%")
     ]
     
-    cols = st.columns(9)
+    cols = st.columns(7)
     for i, (l, v, u) in enumerate(kpis):
         # 딕셔너리나 리스트인 경우 0으로 처리 (오류 방지)
         if isinstance(v, (dict, list)):
@@ -94,8 +92,6 @@ def render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily,
     st.markdown("""
     <div style="margin-top: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 4px; font-size: 0.9rem; color: #546e7a;">
         <strong>※ 각 지표 산식:</strong><br>
-        • 24시간 방문자수: 조회 시점 기준 직전 24시간 동안의 고유 사용자 수 (activeUsers)<br>
-        • 48시간 방문자수: 조회 시점 기준 직전 48시간 동안의 고유 사용자 수 (중복 제거된 UV)<br>
         • 활성 기사 수: 해당 주차 기간 내 조회가 발생한 고유 기사 주소(pagePath) 수<br>
         • 발행 기사 수: 해당 주차에 처음으로 조회수(PV)가 발생한 기사 수 (GA4 기준)<br>
         • 지난 7일 간 조회수(PV): 해당 주차 기간 내 총 화면 조회수<br>

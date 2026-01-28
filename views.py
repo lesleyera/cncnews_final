@@ -111,10 +111,37 @@ def render_top10_trends(df_top10, df_top10_sources):
 
 # ----------------- 6. 카테고리 분석 -----------------
 def render_category(df):
-    st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 성과</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
     if not df.empty:
-        fig = px.treemap(df, path=['카테고리'], values='조회수', color='조회수', color_continuous_scale='RdBu_r')
-        st.plotly_chart(fig, use_container_width=True)
+        # 컬럼명 확인 및 매핑
+        value_col = '전체조회수' if '전체조회수' in df.columns else ('screenPageViews' if 'screenPageViews' in df.columns else None)
+        if value_col and '카테고리' in df.columns:
+            # 메인 카테고리
+            cat_main = df.groupby('카테고리').agg(기사수=('제목','count') if '제목' in df.columns else ('pageTitle','count'), 전체조회수=(value_col,'sum')).reset_index()
+            total_main = cat_main['기사수'].sum()
+            cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
+            cat_main['전체조회수'] = pd.to_numeric(cat_main['전체조회수'], errors='coerce').fillna(0)
+            cat_main['기사수_num'] = cat_main['기사수'].apply(lambda x: int(x.split('(')[0]))
+            cat_main['평균조회수'] = (cat_main['전체조회수'] / cat_main['기사수_num']).astype(int).map('{:,}'.format)
+            cat_main['전체조회수'] = cat_main['전체조회수'].map('{:,}'.format)
+            
+            st.markdown('<div class="chart-header">1. 메인 카테고리별 기사 수</div>', unsafe_allow_html=True)
+            st.plotly_chart(px.bar(cat_main, x='카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(showlegend=False, plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_main_chart")
+            st.dataframe(cat_main[['카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
+
+            # 세부 카테고리
+            if '세부카테고리' in df.columns:
+                st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
+                cat_sub = df.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count') if '제목' in df.columns else ('pageTitle','count'), 전체조회수=(value_col,'sum')).reset_index()
+                total_sub = cat_sub['기사수'].sum()
+                cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)
+                cat_sub['전체조회수'] = pd.to_numeric(cat_sub['전체조회수'], errors='coerce').fillna(0)
+                cat_sub['기사수_num'] = cat_sub['기사수'].apply(lambda x: int(x.split('(')[0]))
+                cat_sub['평균조회수'] = (cat_sub['전체조회수'] / cat_sub['기사수_num']).astype(int).map('{:,}'.format)
+                cat_sub['전체조회수'] = cat_sub['전체조회수'].map('{:,}'.format)
+                
+                st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
+                st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
 
 # ----------------- 7. 기자별 분석 (본명/필명 분리 렌더링) -----------------
 def render_writer_analysis(writers_df_real, writers_df_pen):

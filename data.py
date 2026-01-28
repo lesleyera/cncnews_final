@@ -197,16 +197,31 @@ def get_writers_df_real(df_target):
     if '본명' not in df_work.columns:
         df_work['본명'] = df_work['작성자'].map(pen_to_real_map).fillna(df_work['작성자'])
     
-    # 카운트용 컬럼 결정
-    count_col = '제목' if '제목' in df_work.columns else ('pageTitle' if 'pageTitle' in df_work.columns else None)
-    if count_col is None:
+    # '본명' 컬럼이 실제로 존재하는지 확인
+    if '본명' not in df_work.columns:
+        return pd.DataFrame(), pd.DataFrame()
+    
+    # 카운트용 컬럼 결정 및 생성
+    count_col = None
+    if '제목' in df_work.columns:
+        count_col = '제목'
+    elif 'pageTitle' in df_work.columns:
+        count_col = 'pageTitle'
+    else:
         df_work['_count'] = 1
         count_col = '_count'
     
-    # 집계용 컬럼 확인 및 생성
-    agg_dict = {'기사수': (count_col, 'count')}
+    # count_col이 실제로 존재하는지 확인
+    if count_col not in df_work.columns:
+        return pd.DataFrame(), pd.DataFrame()
     
-    # 총조회수 컬럼 확인
+    # 집계용 컬럼 확인 및 생성 (반드시 존재하는 컬럼만 agg_dict에 추가)
+    agg_dict = {}
+    
+    # 기사수는 항상 추가 (count_col은 위에서 보장됨)
+    agg_dict['기사수'] = (count_col, 'count')
+    
+    # 총조회수 컬럼 확인 및 생성
     if '전체조회수' in df_work.columns:
         agg_dict['총조회수'] = ('전체조회수', 'sum')
     elif 'screenPageViews' in df_work.columns:
@@ -230,15 +245,26 @@ def get_writers_df_real(df_target):
         df_work['댓글'] = 0
         agg_dict['댓글'] = ('댓글', 'sum')
     
+    # agg_dict에 포함된 모든 컬럼이 실제로 존재하는지 최종 확인
+    for key, (col, _) in agg_dict.items():
+        if col not in df_work.columns:
+            return pd.DataFrame(), pd.DataFrame()
+    
     # 본명 기준 집계
-    writers_df_real = df_work.groupby('본명').agg(agg_dict).reset_index()
+    try:
+        writers_df_real = df_work.groupby('본명').agg(agg_dict).reset_index()
+    except (KeyError, ValueError) as e:
+        return pd.DataFrame(), pd.DataFrame()
     writers_df_real = writers_df_real.rename(columns={'본명': '작성자'})
     writers_df_real = writers_df_real.sort_values('총조회수', ascending=False)
     writers_df_real['순위'] = range(1, len(writers_df_real) + 1)
     writers_df_real['평균조회수'] = (writers_df_real['총조회수'] / writers_df_real['기사수']).astype(int)
     
     # 필명 기준 집계
-    writers_df_pen = df_work.groupby('작성자').agg(agg_dict).reset_index()
+    try:
+        writers_df_pen = df_work.groupby('작성자').agg(agg_dict).reset_index()
+    except (KeyError, ValueError) as e:
+        return pd.DataFrame(), pd.DataFrame()
     if '본명' in df_work.columns:
         writers_df_pen = writers_df_pen.merge(df_work[['작성자', '본명']].drop_duplicates(), on='작성자', how='left')
     else:

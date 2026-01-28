@@ -615,8 +615,7 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             st.warning("기사별 유입경로 상세 데이터가 없습니다.")
 
 
-# views.py 내 6. 카테고리별 분석 부분
-
+# ----------------- 6. 카테고리별 분석 -----------------
 def render_category(df_input):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
     
@@ -625,40 +624,53 @@ def render_category(df_input):
         return
 
     try:
-        # 1. 제목 데이터 확보: GA4의 'pageTitle'을 우선 사용 (홈페이지 크롤링 의존도 제거)
-        # GA4 데이터셋에 'pageTitle' 또는 '제목' 컬럼이 있는지 확인
-        if 'pageTitle' in df_input.columns:
-            df_input['제목_처리'] = df_input['pageTitle']
-        elif '제목' in df_input.columns:
-            df_input['제목_처리'] = df_input['제목']
+        # 데이터 복사본 생성
+        df_work = df_input.copy()
+
+        # 1. 제목 데이터 확보 (GA4 pageTitle 우선 참조)
+        # 다중 컬럼 할당 오류 방지를 위해 .iloc[:, 0] 또는 명시적 Series 추출 사용
+        if 'pageTitle' in df_work.columns:
+            df_work['제목_처리'] = df_work['pageTitle']
+        elif '제목' in df_work.columns:
+            # 중복 컬럼이 있을 경우를 대비하여 첫 번째 컬럼만 선택
+            title_data = df_work['제목']
+            df_work['제목_처리'] = title_data.iloc[:, 0] if isinstance(title_data, pd.DataFrame) else title_data
         else:
-            df_input['제목_처리'] = "제목 없음"
+            df_work['제목_처리'] = "제목 없음"
 
         # 2. 조회수 컬럼 식별
-        pv_col = '전체조회수' if '전체조회수' in df_input.columns else ('조회수' if '조회수' in df_input.columns else 'screenPageViews')
-        if pv_col not in df_input.columns:
-            df_input[pv_col] = 0
+        pv_cols = ['전체조회수', '조회수', 'screenPageViews']
+        pv_col = next((c for c in pv_cols if c in df_work.columns), None)
+        
+        if pv_col:
+            # 조회수 데이터가 DataFrame일 경우 첫 번째 열만 사용
+            pv_data = df_work[pv_col]
+            df_work['PV_FINAL'] = pv_data.iloc[:, 0] if isinstance(pv_data, pd.DataFrame) else pv_data
+        else:
+            df_work['PV_FINAL'] = 0
 
-        # 3. 카테고리 정보가 없을 경우를 대비한 기본값 처리
-        if '카테고리' not in df_input.columns:
-            # GA4 데이터인 경우 제목이나 경로에서 카테고리를 유추하는 로직이 필요할 수 있으나, 
-            # 현재는 안전하게 '기타'로 분류하여 에러 방지
-            df_input['카테고리'] = '미분류'
+        # 3. 카테고리 컬럼 안전하게 확보
+        if '카테고리' not in df_work.columns:
+            df_work['카테고리'] = '미분류'
+        else:
+            cat_data = df_work['카테고리']
+            if isinstance(cat_data, pd.DataFrame):
+                df_work['카테고리'] = cat_data.iloc[:, 0]
 
-        # 4. 그룹화 집계 (AttributeError 방지용 표준 문법)
-        cat_main = df_input.groupby('카테고리').agg(
+        # 4. 그룹화 집계
+        cat_main = df_work.groupby('카테고리').agg(
             기사수=('제목_처리', 'count'),
-            전체조회수=(pv_col, 'sum')
+            전체조회수=('PV_FINAL', 'sum')
         ).reset_index()
 
         cat_main = cat_main.sort_values('전체조회수', ascending=False)
         
-        # 테이블 출력 데이터 가공
+        # 테이블 출력
         disp_cat = cat_main.copy()
         disp_cat['전체조회수'] = disp_cat['전체조회수'].apply(lambda x: f"{int(x):,}")
         st.dataframe(disp_cat, use_container_width=True, hide_index=True)
         
-        # 차트 시각화
+        # 차트 출력
         col1, col2 = st.columns(2)
         with col1:
             fig_cnt = px.pie(cat_main, names='카테고리', values='기사수', title='카테고리별 기사 분포',
@@ -670,27 +682,35 @@ def render_category(df_input):
             st.plotly_chart(fig_pv, use_container_width=True)
             
     except Exception as e:
-        st.error(f"카테고리 분석 데이터 처리 중 오류가 발생했습니다. (원인: {str(e)})")
+        st.error(f"카테고리 분석 데이터 처리 중 오류가 발생했습니다. (상세: {str(e)})")
 
-# 7. 기자별 분석 통합 함수 (기존과 동일하게 유지)
+# ----------------- 7. 기자별 분석 (통합) -----------------
 def render_writer_analysis(df_real, df_pen):
     st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)
     
+    # 본명 기준
     st.subheader("▣ 본명 기준 실적")
     if df_real is not None and not df_real.empty:
         disp_w = df_real.copy()
-        cols = ['총조회수', '평균조회수', '좋아요', '댓글']
-        for c in cols:
-            if c in disp_w.columns: disp_w[c] = disp_w[c].apply(lambda x: f"{int(x):,}")
-        st.dataframe(disp_w, use_container_width=True, hide_index=True)
-    else: st.info("본명 기준 데이터가 없습니다.")
+        for c in ['총조회수', '평균조회수', '좋아요', '댓글']:
+            if c in disp_w.columns:
+                disp_w[c] = disp_w[c].apply(lambda x: f"{int(x) if pd.notnull(x) else 0:,}")
+        
+        available_cols = ['순위', '작성자', '기사수', '총조회수', '평균조회수']
+        display_cols = [c for c in available_cols if c in disp_w.columns]
+        st.dataframe(disp_w[display_cols], use_container_width=True, hide_index=True)
+    else:
+        st.info("본명 기준 데이터가 없습니다.")
 
     st.markdown("---")
 
+    # 필명 기준 (구 8페이지 통합)
     st.subheader("▣ 필명 기준 실적")
     if df_pen is not None and not df_pen.empty:
         disp_p = df_pen.copy()
         for c in ['총조회수', '평균조회수']:
-            if c in disp_p.columns: disp_p[c] = disp_p[c].apply(lambda x: f"{int(x):,}")
+            if c in disp_p.columns:
+                disp_p[c] = disp_p[c].apply(lambda x: f"{int(x) if pd.notnull(x) else 0:,}")
         st.dataframe(disp_p, use_container_width=True, hide_index=True)
-    else: st.info("필명 기준 데이터가 없습니다.")
+    else:
+        st.info("필명 기준 데이터가 없습니다.")

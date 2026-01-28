@@ -614,6 +614,7 @@ def render_top10_trends(df_top10, df_top10_sources=None):
         else:
             st.warning("기사별 유입경로 상세 데이터가 없습니다.")
 
+# views.py
 
 # ----------------- 6. 카테고리별 분석 -----------------
 def render_category(df_input):
@@ -624,66 +625,73 @@ def render_category(df_input):
         return
 
     try:
-        # 데이터 복사본 생성
         df_work = df_input.copy()
 
-        # 1. 제목 데이터 확보 (GA4 pageTitle 우선 참조)
-        # 다중 컬럼 할당 오류 방지를 위해 .iloc[:, 0] 또는 명시적 Series 추출 사용
-        if 'pageTitle' in df_work.columns:
-            df_work['제목_처리'] = df_work['pageTitle']
-        elif '제목' in df_work.columns:
-            # 중복 컬럼이 있을 경우를 대비하여 첫 번째 컬럼만 선택
-            title_data = df_work['제목']
-            df_work['제목_처리'] = title_data.iloc[:, 0] if isinstance(title_data, pd.DataFrame) else title_data
-        else:
-            df_work['제목_처리'] = "제목 없음"
+        # 1. 제목 및 카테고리 분리 로직 (GA4 pageTitle 기준)
+        def parse_category(title):
+            if not title or pd.isna(title):
+                return "기타", "기타"
+            # 예: "[경제 > 금융] 기사제목" 형태에서 카테고리 추출
+            match = re.search(r'\[(.*?)\]', str(title))
+            if match:
+                cat_part = match.group(1)
+                if '>' in cat_part:
+                    parts = [p.strip() for p in cat_part.split('>')]
+                    return parts[0], parts[1]
+                return cat_part.strip(), "전체"
+            return "기타", "기타"
 
-        # 2. 조회수 컬럼 식별
+        # 제목 데이터 확보 (iloc을 사용하여 다중 컬럼 오류 방지)
+        if 'pageTitle' in df_work.columns:
+            titles = df_work['pageTitle'].iloc[:, 0] if isinstance(df_work['pageTitle'], pd.DataFrame) else df_work['pageTitle']
+        elif '제목' in df_work.columns:
+            titles = df_work['제목'].iloc[:, 0] if isinstance(df_work['제목'], pd.DataFrame) else df_work['제목']
+        else:
+            titles = pd.Series(["제목 없음"] * len(df_work))
+
+        # 카테고리/세부카테고리 분리 적용
+        cats = titles.apply(parse_category)
+        df_work['카테고리'] = [c[0] for c in cats]
+        df_work['세부카테고리'] = [c[1] for c in cats]
+        df_work['제목_처리'] = titles
+
+        # 2. 조회수 지표 설정
         pv_cols = ['전체조회수', '조회수', 'screenPageViews']
         pv_col = next((c for c in pv_cols if c in df_work.columns), None)
-        
         if pv_col:
-            # 조회수 데이터가 DataFrame일 경우 첫 번째 열만 사용
             pv_data = df_work[pv_col]
             df_work['PV_FINAL'] = pv_data.iloc[:, 0] if isinstance(pv_data, pd.DataFrame) else pv_data
         else:
             df_work['PV_FINAL'] = 0
 
-        # 3. 카테고리 컬럼 안전하게 확보
-        if '카테고리' not in df_work.columns:
-            df_work['카테고리'] = '미분류'
-        else:
-            cat_data = df_work['카테고리']
-            if isinstance(cat_data, pd.DataFrame):
-                df_work['카테고리'] = cat_data.iloc[:, 0]
-
-        # 4. 그룹화 집계
-        cat_main = df_work.groupby('카테고리').agg(
+        # 3. 그룹화 집계 (카테고리, 세부카테고리 기준)
+        cat_main = df_work.groupby(['카테고리', '세부카테고리']).agg(
             기사수=('제목_처리', 'count'),
-            전체조회수=('PV_FINAL', 'sum')
+            조회수_합계=('PV_FINAL', 'sum')
         ).reset_index()
 
-        cat_main = cat_main.sort_values('전체조회수', ascending=False)
+        # 정렬: 조회수 높은 순
+        cat_main = cat_main.sort_values('조회수_합계', ascending=False)
         
-        # 테이블 출력
+        # 4. 표 출력
         disp_cat = cat_main.copy()
-        disp_cat['전체조회수'] = disp_cat['전체조회수'].apply(lambda x: f"{int(x):,}")
+        disp_cat['조회수_합계'] = disp_cat['조회수_합계'].apply(lambda x: f"{int(x):,}")
         st.dataframe(disp_cat, use_container_width=True, hide_index=True)
         
-        # 차트 출력
+        # 5. 시각화 (대분류 카테고리 기준)
+        cat_summary = cat_main.groupby('카테고리').sum(numeric_only=True).reset_index()
         col1, col2 = st.columns(2)
         with col1:
-            fig_cnt = px.pie(cat_main, names='카테고리', values='기사수', title='카테고리별 기사 분포',
+            fig_cnt = px.pie(cat_summary, names='카테고리', values='기사수', title='대분류별 기사 분포',
                             color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(fig_cnt, use_container_width=True)
         with col2:
-            fig_pv = px.pie(cat_main, names='카테고리', values='전체조회수', title='카테고리별 조회수 비중',
+            fig_pv = px.pie(cat_summary, names='카테고리', values='조회수_합계', title='대분류별 조회수 비중',
                            color_discrete_sequence=px.colors.qualitative.Safe)
             st.plotly_chart(fig_pv, use_container_width=True)
             
     except Exception as e:
-        st.error(f"카테고리 분석 데이터 처리 중 오류가 발생했습니다. (상세: {str(e)})")
-
+        st.error(f"6번 표 구성 중 오류 발생: {str(e)}")
 # ----------------- 7. 기자별 분석 (통합) -----------------
 def render_writer_analysis(df_real, df_pen):
     st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)

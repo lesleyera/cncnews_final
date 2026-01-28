@@ -615,70 +615,57 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             st.warning("기사별 유입경로 상세 데이터가 없습니다.")
 
 # ----------------- 6. 카테고리 -----------------
-def render_category(df_published_all):
+def render_category(df_top10):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
-    if not df_published_all.empty:
-        df_real = df_published_all
+    if not df_top10.empty:
         # 메인 카테고리
-        cat_main = df_real.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
+        cat_main = df_top10.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_main = cat_main['기사수'].sum()
-        # [수정] 기사수 (비중%) 형태로 병합
         cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
-        
         cat_main['전체조회수'] = pd.to_numeric(cat_main['전체조회수'], errors='coerce').fillna(0)
-        cat_main['기사수_num'] = cat_main['기사수'].apply(lambda x: int(x.split('(')[0])) # 차트용 숫자 추출
-        
-        # [수정] 컬럼명 변경: 기사1건당평균 -> 평균조회수
+        cat_main['기사수_num'] = cat_main['기사수'].apply(lambda x: int(x.split('(')[0]))
         cat_main['평균조회수'] = (cat_main['전체조회수'] / cat_main['기사수_num']).astype(int).map('{:,}'.format)
         cat_main['전체조회수'] = cat_main['전체조회수'].map('{:,}'.format)
         
         st.markdown('<div class="chart-header">1. 메인 카테고리별 기사 수</div>', unsafe_allow_html=True)
         st.plotly_chart(px.bar(cat_main, x='카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(showlegend=False, plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_main_chart")
-        st.dataframe(cat_main[['카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True, height="content")
+        st.dataframe(cat_main[['카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
 
         # 세부 카테고리
         st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        cat_sub = df_real.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
+        cat_sub = df_top10.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
         total_sub = cat_sub['기사수'].sum()
-        # [수정] 기사수 (비중%) 형태로 병합
         cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)
-        
         cat_sub['전체조회수'] = pd.to_numeric(cat_sub['전체조회수'], errors='coerce').fillna(0)
         cat_sub['기사수_num'] = cat_sub['기사수'].apply(lambda x: int(x.split('(')[0]))
-        
-        # [수정] 컬럼명 변경: 기사1건당평균 -> 평균조회수
         cat_sub['평균조회수'] = (cat_sub['전체조회수'] / cat_sub['기사수_num']).astype(int).map('{:,}'.format)
         cat_sub['전체조회수'] = cat_sub['전체조회수'].map('{:,}'.format)
         
         st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
-        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True, height="content")
-        
-        # 발행기사 수 반환 (카테고리별 기사 수 합계)
-        return total_main
-    return 0
+        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
 
-# ----------------- 7. 기자별 분석 -----------------
-def render_writer_analysis(writers_df_real, writers_df_pen):
-    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)
-    
-    # 7-1. 이번주 기자별 분석 (본명 기준) - 본명으로 합산하여 순위 매김
-    st.markdown('<div class="sub-header">7-1. 이번주 기자별 분석 (본명 기준)</div>', unsafe_allow_html=True)
-    if not writers_df_real.empty:
-        disp_w = writers_df_real.copy()
-        for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
+# ----------------- 7. 기자별 분석 (본명 기준) -----------------
+def render_writer_real(writers_df):
+    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석 (본명 기준)</div></div>', unsafe_allow_html=True)
+    if not writers_df.empty:
+        disp_w = writers_df.copy()
+        for c in ['총조회수','평균조회수','좋아요','댓글']:
+            if c in disp_w.columns:
+                disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
         st.dataframe(disp_w, use_container_width=True, hide_index=True)
     else:
         st.info("본명 기준 기자 실적 없음")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 7-2. 이번주 기자별 분석 (필명 기준) - 필명으로 합산하여 순위 매김
-    st.markdown('<div class="sub-header">7-2. 이번주 기자별 분석 (필명 기준)</div>', unsafe_allow_html=True)
-    if not writers_df_pen.empty:
-        disp_w = writers_df_pen.copy()
-        for c in ['총조회수','평균조회수','좋아요','댓글']: disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
+
+# ----------------- 8. 기자별 분석 (필명 기준) -----------------
+def render_writer_pen(writers_df):
+    st.markdown('<div class="section-header-container"><div class="section-header">8. 기자별 분석 (필명 기준)</div></div>', unsafe_allow_html=True)
+    if not writers_df.empty:
+        disp_w = writers_df.copy()
+        for c in ['총조회수','평균조회수','좋아요','댓글']:
+            if c in disp_w.columns:
+                disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
         disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
         disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
         st.dataframe(disp_w, use_container_width=True, hide_index=True)

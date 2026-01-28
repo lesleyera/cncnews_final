@@ -203,22 +203,32 @@ def get_writers_df_real(df_target):
         df_work['_count'] = 1
         count_col = '_count'
     
-    # 집계용 컬럼 확인
+    # 집계용 컬럼 확인 및 생성
     agg_dict = {'기사수': (count_col, 'count')}
+    
+    # 총조회수 컬럼 확인
     if '전체조회수' in df_work.columns:
         agg_dict['총조회수'] = ('전체조회수', 'sum')
     elif 'screenPageViews' in df_work.columns:
         agg_dict['총조회수'] = ('screenPageViews', 'sum')
+    else:
+        # 총조회수 컬럼이 없으면 기본값 0으로 생성
+        df_work['총조회수'] = 0
+        agg_dict['총조회수'] = ('총조회수', 'sum')
     
+    # 좋아요 컬럼 확인 및 생성
     if '좋아요' in df_work.columns:
         agg_dict['좋아요'] = ('좋아요', 'sum')
     else:
         df_work['좋아요'] = 0
+        agg_dict['좋아요'] = ('좋아요', 'sum')
     
+    # 댓글 컬럼 확인 및 생성
     if '댓글' in df_work.columns:
         agg_dict['댓글'] = ('댓글', 'sum')
     else:
         df_work['댓글'] = 0
+        agg_dict['댓글'] = ('댓글', 'sum')
     
     # 본명 기준 집계
     writers_df_real = df_work.groupby('본명').agg(agg_dict).reset_index()

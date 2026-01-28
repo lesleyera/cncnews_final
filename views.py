@@ -615,110 +615,65 @@ def render_top10_trends(df_top10, df_top10_sources=None):
             st.warning("기사별 유입경로 상세 데이터가 없습니다.")
 
 # views.py
+import streamlit as st
+import plotly.express as px
+import pandas as pd
 
 # ----------------- 6. 카테고리별 분석 -----------------
 def render_category(df_input):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
     
     if df_input is None or df_input.empty:
-        st.info("해당 주차에 분석할 데이터가 없습니다.")
+        st.info("분석할 데이터가 없습니다.")
         return
 
-    try:
-        df_work = df_input.copy()
+    # data.py에서 이미 '카테고리'와 '세부카테고리'가 메타태그 기반으로 수집됨
+    df_work = df_input.copy()
+    pv_col = 'screenPageViews' if 'screenPageViews' in df_work.columns else '조회수'
 
-        # 1. 제목 및 카테고리 분리 로직 (GA4 pageTitle 기준)
-        def parse_category(title):
-            if not title or pd.isna(title):
-                return "기타", "기타"
-            # 예: "[경제 > 금융] 기사제목" 형태에서 카테고리 추출
-            match = re.search(r'\[(.*?)\]', str(title))
-            if match:
-                cat_part = match.group(1)
-                if '>' in cat_part:
-                    parts = [p.strip() for p in cat_part.split('>')]
-                    return parts[0], parts[1]
-                return cat_part.strip(), "전체"
-            return "기타", "기타"
+    # 집계 (이미 정제된 카테고리 컬럼 사용)
+    cat_stats = df_work.groupby(['카테고리', '세부카테고리']).agg(
+        기사수=('pagePath', 'count'),
+        조회수_합계=(pv_col, 'sum')
+    ).reset_index()
 
-        # 제목 데이터 확보 (iloc을 사용하여 다중 컬럼 오류 방지)
-        if 'pageTitle' in df_work.columns:
-            titles = df_work['pageTitle'].iloc[:, 0] if isinstance(df_work['pageTitle'], pd.DataFrame) else df_work['pageTitle']
-        elif '제목' in df_work.columns:
-            titles = df_work['제목'].iloc[:, 0] if isinstance(df_work['제목'], pd.DataFrame) else df_work['제목']
-        else:
-            titles = pd.Series(["제목 없음"] * len(df_work))
-
-        # 카테고리/세부카테고리 분리 적용
-        cats = titles.apply(parse_category)
-        df_work['카테고리'] = [c[0] for c in cats]
-        df_work['세부카테고리'] = [c[1] for c in cats]
-        df_work['제목_처리'] = titles
-
-        # 2. 조회수 지표 설정
-        pv_cols = ['전체조회수', '조회수', 'screenPageViews']
-        pv_col = next((c for c in pv_cols if c in df_work.columns), None)
-        if pv_col:
-            pv_data = df_work[pv_col]
-            df_work['PV_FINAL'] = pv_data.iloc[:, 0] if isinstance(pv_data, pd.DataFrame) else pv_data
-        else:
-            df_work['PV_FINAL'] = 0
-
-        # 3. 그룹화 집계 (카테고리, 세부카테고리 기준)
-        cat_main = df_work.groupby(['카테고리', '세부카테고리']).agg(
-            기사수=('제목_처리', 'count'),
-            조회수_합계=('PV_FINAL', 'sum')
-        ).reset_index()
-
-        # 정렬: 조회수 높은 순
-        cat_main = cat_main.sort_values('조회수_합계', ascending=False)
-        
-        # 4. 표 출력
-        disp_cat = cat_main.copy()
-        disp_cat['조회수_합계'] = disp_cat['조회수_합계'].apply(lambda x: f"{int(x):,}")
-        st.dataframe(disp_cat, use_container_width=True, hide_index=True)
-        
-        # 5. 시각화 (대분류 카테고리 기준)
-        cat_summary = cat_main.groupby('카테고리').sum(numeric_only=True).reset_index()
-        col1, col2 = st.columns(2)
-        with col1:
-            fig_cnt = px.pie(cat_summary, names='카테고리', values='기사수', title='대분류별 기사 분포',
-                            color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_cnt, use_container_width=True)
-        with col2:
-            fig_pv = px.pie(cat_summary, names='카테고리', values='조회수_합계', title='대분류별 조회수 비중',
-                           color_discrete_sequence=px.colors.qualitative.Safe)
-            st.plotly_chart(fig_pv, use_container_width=True)
-            
-    except Exception as e:
-        st.error(f"6번 표 구성 중 오류 발생: {str(e)}")
-# ----------------- 7. 기자별 분석 (통합) -----------------
-def render_writer_analysis(df_real, df_pen):
-    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)
+    cat_stats = cat_stats.sort_values('조회수_합계', ascending=False)
     
-    # 본명 기준
-    st.subheader("▣ 본명 기준 실적")
-    if df_real is not None and not df_real.empty:
-        disp_w = df_real.copy()
-        for c in ['총조회수', '평균조회수', '좋아요', '댓글']:
-            if c in disp_w.columns:
-                disp_w[c] = disp_w[c].apply(lambda x: f"{int(x) if pd.notnull(x) else 0:,}")
-        
-        available_cols = ['순위', '작성자', '기사수', '총조회수', '평균조회수']
-        display_cols = [c for c in available_cols if c in disp_w.columns]
-        st.dataframe(disp_w[display_cols], use_container_width=True, hide_index=True)
-    else:
-        st.info("본명 기준 데이터가 없습니다.")
+    # 표 출력
+    disp_cat = cat_stats.copy()
+    disp_cat['조회수_합계'] = disp_cat['조회수_합계'].apply(lambda x: f"{int(x):,}")
+    st.dataframe(disp_cat, use_container_width=True, hide_index=True)
+    
+    # 시각화
+    col1, col2 = st.columns(2)
+    with col1:
+        fig1 = px.pie(cat_stats, names='카테고리', values='기사수', title='카테고리별 기사 분포')
+        st.plotly_chart(fig1, use_container_width=True)
+    with col2:
+        fig2 = px.pie(cat_stats, names='카테고리', values='조회수_합계', title='카테고리별 조회수 비중')
+        st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown("---")
+# ----------------- 7. 기자별 분석 (본명 기준) -----------------
+def render_writer_analysis(df_top10):
+    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석 (본명 기준)</div></div>', unsafe_allow_html=True)
+    
+    if df_top10 is None or df_top10.empty:
+        st.info("데이터가 없습니다.")
+        return
 
-    # 필명 기준 (구 8페이지 통합)
-    st.subheader("▣ 필명 기준 실적")
-    if df_pen is not None and not df_pen.empty:
-        disp_p = df_pen.copy()
-        for c in ['총조회수', '평균조회수']:
-            if c in disp_p.columns:
-                disp_p[c] = disp_p[c].apply(lambda x: f"{int(x) if pd.notnull(x) else 0:,}")
-        st.dataframe(disp_p, use_container_width=True, hide_index=True)
-    else:
-        st.info("필명 기준 데이터가 없습니다.")
+    # data.py에서 생성한 '본명' 컬럼 기준 집계
+    pv_col = 'screenPageViews' if 'screenPageViews' in df_top10.columns else '조회수'
+    writer_stats = df_top10.groupby('본명').agg(
+        기사수=('pagePath', 'count'),
+        총조회수=(pv_col, 'sum'),
+        좋아요=('좋아요', 'sum'),
+        댓글=('댓글', 'sum')
+    ).reset_index()
+
+    writer_stats['평균조회수'] = (writer_stats['총조회수'] / writer_stats['기사수']).astype(int)
+    writer_stats = writer_stats.sort_values('총조회수', ascending=False)
+    writer_stats.insert(0, '순위', range(1, len(writer_stats) + 1))
+
+    # 컬럼명 정리 및 출력
+    writer_stats.columns = ['순위', '성명', '기사수', '총 조회수', '좋아요', '댓글', '평균 조회수']
+    st.dataframe(writer_stats, use_container_width=True, hide_index=True)

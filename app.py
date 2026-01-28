@@ -121,28 +121,32 @@ if st.session_state['print_mode']:
     
     st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
     
-    # 1~5 섹션 렌더링
+    # 1~7 섹션 순차 렌더링
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
+    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
+    
     views.render_traffic(df_traffic_curr, df_traffic_last)
+    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
+    
     views.render_demo_region(df_region_curr, df_region_last)
+    st.markdown('---')
     views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
+    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
+    
     views.render_top10_detail(df_top10, df_published_top10)
+    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
+    
     views.render_top10_trends(df_top10, df_top10_sources)
+    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
     # 6. 카테고리별 분석
-    views.render_category(df_published_all_week)
+    views.render_category(df_published_all_week if not df_published_all_week.empty else df_top10)
+    st.markdown('<div class="page-break"></div>', unsafe_allow_html=True)
     
-    # 7. 기자별 분석 (본명 + 필명 통합)
+    # 7. 기자별 분석 (본명 + 필명 통합 섹션 호출)
     views.render_writer_analysis(writers_df_real, writers_df_pen)
     
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 페이지 번호 스크립트 생략 (기존 유지)
-
-# app.py 탭 렌더링 부분
-
-# ... (상단 데이터 로드 로직 동일)
-
 else:
     # [일반 모드] 탭 정의
     tabs = st.tabs(["1.성과요약", "2.접근경로", "3.방문자특성", "4.Top10상세", "5.Top10추이", "6.카테고리", "7.기자별분석"])
@@ -155,13 +159,9 @@ else:
         views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
     with tabs[3]: views.render_top10_detail(df_top10, df_published_top10)
     with tabs[4]: views.render_top10_trends(df_top10, df_top10_sources)
-    
-    # 6번 탭: 카테고리 분석 (GA4에서 가져온 df_top10을 기본 데이터로 활용하여 제목 오류 방지)
     with tabs[5]: 
-        # 발행 기사 전체 데이터가 있으면 사용하되, 없으면 GA4 데이터(df_top10)에서 제목을 참조함
         target_df = df_published_all_week if not df_published_all_week.empty else df_top10
         views.render_category(target_df)
-        
-    # 7번 탭: 기자별 분석 통합
     with tabs[6]: 
+        # 통합된 7번 탭 내에서 본명/필명 순위 각각 출력
         views.render_writer_analysis(writers_df_real, writers_df_pen)

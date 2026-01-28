@@ -614,60 +614,91 @@ def render_top10_trends(df_top10, df_top10_sources=None):
         else:
             st.warning("기사별 유입경로 상세 데이터가 없습니다.")
 
-# ----------------- 6. 카테고리 -----------------
+# ----------------- 6. 카테고리별 분석 -----------------
 def render_category(df_top10):
     st.markdown('<div class="section-header-container"><div class="section-header">6. 카테고리별 분석</div></div>', unsafe_allow_html=True)
-    if not df_top10.empty:
-        # 메인 카테고리
-        cat_main = df_top10.groupby('카테고리').agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
-        total_main = cat_main['기사수'].sum()
-        cat_main['기사수'] = cat_main.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_main*100:.1f}%)", axis=1)
-        cat_main['전체조회수'] = pd.to_numeric(cat_main['전체조회수'], errors='coerce').fillna(0)
-        cat_main['기사수_num'] = cat_main['기사수'].apply(lambda x: int(x.split('(')[0]))
-        cat_main['평균조회수'] = (cat_main['전체조회수'] / cat_main['기사수_num']).astype(int).map('{:,}'.format)
-        cat_main['전체조회수'] = cat_main['전체조회수'].map('{:,}'.format)
+    
+    if df_top10 is None or df_top10.empty:
+        st.info("해당 주차에 분석할 데이터가 없습니다.")
+        return
+
+    try:
+        # 컬럼명 유연성 확보 (제목/기사명, 전체조회수/조회수 등)
+        target_col = '제목' if '제목' in df_top10.columns else (df_top10.columns[0] if len(df_top10.columns) > 0 else None)
+        pv_col = '전체조회수' if '전체조회수' in df_top10.columns else ('조회수' if '조회수' in df_top10.columns else None)
         
-        st.markdown('<div class="chart-header">1. 메인 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        st.plotly_chart(px.bar(cat_main, x='카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(showlegend=False, plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_main_chart")
-        st.dataframe(cat_main[['카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
+        if '카테고리' not in df_top10.columns or not target_col:
+            st.warning("데이터 구조가 올바르지 않습니다. (카테고리 또는 제목 컬럼 누락)")
+            return
 
-        # 세부 카테고리
-        st.markdown('<div class="chart-header">2. 세부 카테고리별 기사 수</div>', unsafe_allow_html=True)
-        cat_sub = df_top10.groupby(['카테고리', '세부카테고리']).agg(기사수=('제목','count'), 전체조회수=('전체조회수','sum')).reset_index()
-        total_sub = cat_sub['기사수'].sum()
-        cat_sub['기사수'] = cat_sub.apply(lambda x: f"{x['기사수']} ({x['기사수']/total_sub*100:.1f}%)", axis=1)
-        cat_sub['전체조회수'] = pd.to_numeric(cat_sub['전체조회수'], errors='coerce').fillna(0)
-        cat_sub['기사수_num'] = cat_sub['기사수'].apply(lambda x: int(x.split('(')[0]))
-        cat_sub['평균조회수'] = (cat_sub['전체조회수'] / cat_sub['기사수_num']).astype(int).map('{:,}'.format)
-        cat_sub['전체조회수'] = cat_sub['전체조회수'].map('{:,}'.format)
+        # 그룹화 로직 수정 (AttributeError 방지)
+        if pv_col:
+            cat_main = df_top10.groupby('카테고리').agg(
+                기사수=(target_col, 'count'),
+                전체조회수=(pv_col, 'sum')
+            ).reset_index()
+        else:
+            cat_main = df_top10.groupby('카테고리').agg(
+                기사수=(target_col, 'count')
+            ).reset_index()
+            cat_main['전체조회수'] = 0
+
+        cat_main = cat_main.sort_values('전체조회수', ascending=False)
         
-        st.plotly_chart(px.bar(cat_sub, x='세부카테고리', y='기사수_num', text_auto=True, color='카테고리', color_discrete_sequence=CHART_PALETTE).update_layout(plot_bgcolor='white', yaxis_title="기사수"), use_container_width=True, key="category_sub_chart")
-        st.dataframe(cat_sub[['카테고리', '세부카테고리', '기사수', '전체조회수', '평균조회수']], use_container_width=True, hide_index=True)
+        # 테이블 출력
+        disp_cat = cat_main.copy()
+        disp_cat['전체조회수'] = disp_cat['전체조회수'].apply(lambda x: f"{int(x):,}")
+        st.dataframe(disp_cat, use_container_width=True, hide_index=True)
+        
+        # 차트 출력
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_cnt = px.pie(cat_main, names='카테고리', values='기사수', title='카테고리별 기사 분포',
+                            color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_cnt, use_container_width=True)
+        with col2:
+            fig_pv = px.pie(cat_main, names='카테고리', values='전체조회수', title='카테고리별 조회수 비중',
+                           color_discrete_sequence=px.colors.qualitative.Safe)
+            st.plotly_chart(fig_pv, use_container_width=True)
+            
+    except Exception as e:
+        st.error(f"카테고리 분석 데이터 처리 중 오류가 발생했습니다.")
 
-# ----------------- 7. 기자별 분석 (본명 기준) -----------------
-def render_writer_real(writers_df):
-    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석 (본명 기준)</div></div>', unsafe_allow_html=True)
-    if not writers_df.empty:
-        disp_w = writers_df.copy()
-        for c in ['총조회수','평균조회수','좋아요','댓글']:
-            if c in disp_w.columns:
-                disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
-        disp_w = disp_w[['순위', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
-        disp_w.columns = ['순위', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.dataframe(disp_w, use_container_width=True, hide_index=True)
-    else:
-        st.info("본명 기준 기자 실적 없음")
 
-# ----------------- 8. 기자별 분석 (필명 기준) -----------------
-def render_writer_pen(writers_df):
-    st.markdown('<div class="section-header-container"><div class="section-header">8. 기자별 분석 (필명 기준)</div></div>', unsafe_allow_html=True)
-    if not writers_df.empty:
-        disp_w = writers_df.copy()
-        for c in ['총조회수','평균조회수','좋아요','댓글']:
+# ----------------- 7. 기자별 분석 (통합) -----------------
+def render_writer_analysis(df_real, df_pen):
+    # 제목 수정: 7. 기자별 분석
+    st.markdown('<div class="section-header-container"><div class="section-header">7. 기자별 분석</div></div>', unsafe_allow_html=True)
+    
+    # --- 본명 기준 섹션 ---
+    st.subheader("▣ 본명 기준 실적")
+    if df_real is not None and not df_real.empty:
+        disp_w = df_real.copy()
+        # 안전한 포맷팅 처리
+        cols_to_format = ['총조회수', '평균조회수', '좋아요', '댓글']
+        for c in cols_to_format:
             if c in disp_w.columns:
-                disp_w[c] = disp_w[c].apply(lambda x: f"{x:,}")
-        disp_w = disp_w[['순위', '필명', '작성자', '기사수', '총조회수', '평균조회수', '좋아요', '댓글']]
-        disp_w.columns = ['순위', '필명', '본명', '발행기사 수', '전체 조회 수', '기사 1건 당 평균 조회 수', '좋아요 개수', '댓글 개수']
-        st.dataframe(disp_w, use_container_width=True, hide_index=True)
+                disp_w[c] = disp_w[c].apply(lambda x: f"{int(x) if pd.notnull(x) else 0:,}")
+        
+        # 출력 컬럼 설정
+        available_cols = ['순위', '작성자', '기사수', '총조회수', '평균조회수']
+        display_cols = [c for c in available_cols if c in disp_w.columns]
+        st.dataframe(disp_w[display_cols], use_container_width=True, hide_index=True)
     else:
-        st.info("필명 기준 기자 실적 없음")
+        st.info("본명 기준 기자 실적 데이터가 없습니다.")
+
+    st.markdown("---")
+
+    # --- 필명 기준 섹션 (구 8페이지) ---
+    st.subheader("▣ 필명 기준 실적")
+    if df_pen is not None and not df_pen.empty:
+        disp_p = df_pen.copy()
+        for c in ['총조회수', '평균조회수']:
+            if c in disp_p.columns:
+                disp_p[c] = disp_p[c].apply(lambda x: f"{int(x) if pd.notnull(x) else 0:,}")
+        st.dataframe(disp_p, use_container_width=True, hide_index=True)
+    else:
+        st.info("필명 기준 기자 실적 데이터가 없습니다.")
+
+# 기존 render_writer_real, render_writer_pen 함수는 하위 호환성을 위해 유지하거나 
+# 위 함수로 대체합니다.

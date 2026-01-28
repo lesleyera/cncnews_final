@@ -2,6 +2,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime
+import pandas as pd
 
 # 모듈 임포트
 import config
@@ -95,126 +96,50 @@ else:
     selected_week = st.session_state.get('selected_week_for_print', st.session_state.get('week_select', list(WEEK_MAP.keys())[0]))
 
 # 데이터 로드
-# [수정] data.py에서 반환하는 visitor_24h, visitor_48h 추가 수신 (총 23개 항목)
 (cur_uv, cur_pv, df_daily, df_weekly, df_traffic_curr, df_traffic_last, 
  df_region_curr, df_region_last, df_age_curr, df_age_last, df_gender_curr, df_gender_last, 
- df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, published_article_count, df_top10_sources, df_published_top10, df_published_all_week, visitor_24h, visitor_48h) = data.load_all_dashboard_data(selected_week)
+ df_top10, df_raw_all, new_ratio, search_ratio, active_article_count, published_article_count, 
+ df_top10_sources, df_published_top10, df_published_all_week, visitor_24h, visitor_48h) = data.load_all_dashboard_data(selected_week)
 
-# 기자별 데이터 생성 (본명 기준, 필명 기준) - 이번주 발행기사 전체 사용
+# 기자별 데이터 생성 (본명 기준, 필명 기준)
 writers_df_real, writers_df_pen = data.get_writers_df_real(df_published_all_week if not df_published_all_week.empty else df_top10)
 
-# 발행기사 수는 이번주 발행기사 전체(df_published_all_week)의 개수로 계산
-# data.py에서 이미 계산한 published_article_count를 사용하되, 
-# df_published_all_week이 있으면 그 길이를 사용 (더 정확함)
+# 발행기사 수 보정
 if not df_published_all_week.empty:
-    # 이번주 발행기사 전체의 개수 (실제 발행된 기사 수)
     published_article_count = len(df_published_all_week)
-# data.py에서 계산한 published_article_count는 기본값으로 유지 (df_published_all_week이 없을 때)
 
 # 뷰 렌더링
 if st.session_state['print_mode']:
     # [인쇄 모드] - 모든 섹션을 순차적으로 표시
-    # 인쇄 모드에서는 헤더와 버튼을 숨기고 콘텐츠만 표시
     st.markdown("""
     <style>
-    /* 인쇄 모드에서 버튼 영역과 불필요한 공간 제거 */
-    .print-preview-layout {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    /* 인쇄 모드에서 버튼 숨김 */
-    .stButton {
-        display: none !important;
-    }
-    
-    /* 첫 번째 섹션이 상단에서 시작 */
-    .print-preview-layout > *:first-child {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-    }
-    
-    /* block-container의 padding 제거 */
-    .print-preview-layout ~ .block-container,
-    .print-preview-layout .block-container {
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-    }
+    .print-preview-layout { margin-top: 0 !important; padding-top: 0 !important; }
+    .stButton { display: none !important; }
+    .print-preview-layout > *:first-child { margin-top: 0 !important; padding-top: 0 !important; }
     </style>
     """, unsafe_allow_html=True)
     
     st.markdown('<div class="print-preview-layout">', unsafe_allow_html=True)
     
-    # 1. 성과 요약 (첫 번째 섹션은 페이지 넘김 없이)
+    # 1~5 섹션 렌더링
     views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
-    
-    # 2. 접근 경로
     views.render_traffic(df_traffic_curr, df_traffic_last)
-    
-    # 3. 방문자 특성
     views.render_demo_region(df_region_curr, df_region_last)
     views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
-    
-    # 4. Top10 상세
     views.render_top10_detail(df_top10, df_published_top10)
-    
-    # 5. Top10 추이
     views.render_top10_trends(df_top10, df_top10_sources)
     
     # 6. 카테고리별 분석
     views.render_category(df_published_all_week)
     
-    # 7. 기자별 분석
+    # 7. 기자별 분석 (본명 + 필명 통합)
     views.render_writer_analysis(writers_df_real, writers_df_pen)
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # 페이지 번호 추가를 위한 JavaScript
-    page_number_script = """
-    <script>
-    (function() {
-        function addPageNumbers() {
-            const sections = document.querySelectorAll('.section-header-container');
-            const totalPages = sections.length;
-            
-            sections.forEach((section, index) => {
-                // 기존 페이지 번호 제거
-                const existing = section.parentElement.querySelector('.page-number');
-                if (existing) existing.remove();
-                
-                // 페이지 번호 추가
-                const pageNum = document.createElement('div');
-                pageNum.className = 'page-number';
-                pageNum.textContent = (index + 1) + ' / ' + totalPages;
-                pageNum.style.cssText = 'position: fixed; bottom: 3mm; left: 50%; transform: translateX(-50%); font-size: 9pt; color: #666; z-index: 9999;';
-                
-                // 섹션의 부모 컨테이너 찾기
-                let container = section.closest('[data-testid="stVerticalBlock"]');
-                if (!container) container = section.parentElement;
-                
-                if (container) {
-                    container.style.position = 'relative';
-                    container.appendChild(pageNum);
-                }
-            });
-        }
-        
-        // 페이지 로드 시 실행
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', addPageNumbers);
-        } else {
-            addPageNumbers();
-        }
-        
-        // 인쇄 전 실행
-        window.addEventListener('beforeprint', addPageNumbers);
-    })();
-    </script>
-    """
-    st.markdown(page_number_script, unsafe_allow_html=True) 
-
+    # 페이지 번호 스크립트 생략 (기존 유지)
 else:
-    # [일반 모드]
+    # [일반 모드] 탭 구성 (총 7개)
     tabs = st.tabs(["1.성과요약", "2.접근경로", "3.방문자특성", "4.Top10상세", "5.Top10추이", "6.카테고리", "7.기자별분석"])
     
     with tabs[0]: views.render_summary(df_weekly, cur_pv, cur_uv, new_ratio, search_ratio, df_daily, active_article_count, published_article_count)
@@ -224,11 +149,14 @@ else:
         st.markdown("---")
         views.render_demo_age_gender(df_age_curr, df_age_last, df_gender_curr, df_gender_last)
     with tabs[3]: views.render_top10_detail(df_top10, df_published_top10)
-    # [수정] df_top10_sources 인자 추가
     with tabs[4]: views.render_top10_trends(df_top10, df_top10_sources)
+    
+    # 6번 탭: 카테고리 분석
     with tabs[5]: 
         views.render_category(df_published_all_week)
-        # 발행기사 수는 이미 위에서 카테고리별 기사 수 합으로 계산됨
-    with tabs[6]: views.render_writer_analysis(writers_df_real, writers_df_pen)
+        
+    # 7번 탭: 기자별 분석 (통합본 호출)
+    with tabs[6]: 
+        views.render_writer_analysis(writers_df_real, writers_df_pen)
 
 st.markdown('<div class="footer-note no-print">※ 본 보고서는 쿡앤셰프(Cook&Chef) 홈페이지 및 애널리틱스 데이터를 활용하여 구성하였습니다.</div>', unsafe_allow_html=True)
